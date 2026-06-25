@@ -1,0 +1,29 @@
+# secrets
+.env
+.env.local
+.env.*.local
+
+# map photos — never commit
+/samples/*
+!/samples/README.md
+
+# harness output
+/validate/output/
+/validate/review.html
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# node (if app is built later)
+node_modules/
+.next/
+out/
+dist/
+
+# os / editor
+.DS_Store
+.vscode/
+.idea/
