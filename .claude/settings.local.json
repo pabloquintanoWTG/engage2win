@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip show:*)",
+      "Bash(git -C \"C:\\\\Users\\\\pablo.quintano\\\\OneDrive - WiseTech Global\\\\Documents\\\\000_Claude Cowork\\\\DEV\\\\engage2win\" status --short)"
+    ]
+  }
+}
