@@ -16,10 +16,11 @@ What it does
 Usage
 -----
     pip install -r requirements.txt
-    python run.py                # real run (needs ANTHROPIC_API_KEY in ../.env.local)
-    python run.py --dry-run      # no API calls; uses stubs to test the pipeline
-    python run.py --limit 10     # process only the first 10 maps
-    python run.py --rebuild      # rebuild review.html from saved outputs, no API calls
+    python run.py                     # dry-run by default; uses stubs, no API needed
+    python run.py --live              # real run via Anthropic SDK (needs ANTHROPIC_API_KEY)
+    python run.py --claude-cli        # real run via local `claude` CLI (no API key needed)
+    python run.py --limit 10          # process only the first 10 maps
+    python run.py --rebuild           # rebuild review.html from saved outputs, no API calls
     python run.py --model claude-sonnet-4-6
 """
 
@@ -27,7 +28,9 @@ import argparse
 import base64
 import json
 import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -146,6 +149,36 @@ def describe_map(model, describe_template, ctx, image_b64, media_type):
         }],
     )
     return "".join(block.text for block in resp.content if getattr(block, "type", "") == "text")
+
+
+# ---------------------------------------------------------------- claude CLI backend
+def call_model_cli(model, prompt_text, image_path):
+    """Call the local `claude` CLI with an image file. No API key needed."""
+    result = subprocess.run(
+        ["claude", "-p", prompt_text, "--image", str(image_path)],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"claude CLI exited {result.returncode}: {result.stderr.strip()}"
+        )
+    return result.stdout
+
+
+def describe_map_cli(model, describe_template, ctx, image_path):
+    """Call the local `claude` CLI for the description pass."""
+    prompt_text = fill_prompt(describe_template, ctx)
+    result = subprocess.run(
+        ["claude", "-p", prompt_text, "--image", str(image_path)],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"claude CLI exited {result.returncode}: {result.stderr.strip()}"
+        )
+    return result.stdout
 
 
 # ---------------------------------------------------------------- stubs (dry-run)
@@ -346,11 +379,15 @@ Tally the ✅ to get your edit-not-redo rate (target &gt; 80%).</p></header>
 # ---------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--dry-run", action="store_true", help="No API calls; use stub results.")
+    ap.add_argument("--dry-run", action="store_true", default=True, help="No API calls; use stub results (default).")
+    ap.add_argument("--live", action="store_true", help="Make real API calls via Anthropic SDK (requires ANTHROPIC_API_KEY).")
+    ap.add_argument("--claude-cli", action="store_true", dest="claude_cli", help="Make real calls via local `claude` CLI (no API key needed).")
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--limit", type=int, default=0, help="Process only the first N maps (0 = all).")
     ap.add_argument("--rebuild", action="store_true", help="Rebuild review.html from saved outputs, no API calls.")
     args = ap.parse_args()
+    if args.live or args.claude_cli:
+        args.dry_run = False
 
     load_env()
     OUTPUT_DIR.mkdir(exist_ok=True)
@@ -392,13 +429,13 @@ def main():
     if args.limit > 0:
         images = images[:args.limit]
 
-    if not args.dry_run and not os.environ.get("ANTHROPIC_API_KEY"):
-        sys.exit("ANTHROPIC_API_KEY not set. Put it in ../.env.local, or use --dry-run.")
+    if args.live and not os.environ.get("ANTHROPIC_API_KEY"):
+        sys.exit("ANTHROPIC_API_KEY not set. Put it in ../.env.local, or use --claude-cli instead.")
 
     language = ask_language() if not args.dry_run else "en"
 
-    print(f"Evaluating {len(images)} map(s) with model '{args.model}'"
-          f"{' [DRY RUN]' if args.dry_run else ''}\n")
+    mode_label = " [DRY RUN]" if args.dry_run else (" [claude CLI]" if args.claude_cli else " [live SDK]")
+    print(f"Evaluating {len(images)} map(s) with model '{args.model}'{mode_label}\n")
 
     results = []
     for img in images:
@@ -412,6 +449,10 @@ def main():
         try:
             if args.dry_run:
                 data = stub_result(ctx)
+                b64 = None
+            elif args.claude_cli:
+                raw = call_model_cli(args.model, fill_prompt(prompt_template, ctx), img)
+                data = extract_json(raw)
                 b64 = None
             else:
                 b64 = base64.b64encode(img.read_bytes()).decode()
@@ -444,6 +485,8 @@ def main():
                 print(f"  description ...", end=" ", flush=True)
                 if args.dry_run:
                     desc_md = stub_description(ctx)
+                elif args.claude_cli:
+                    desc_md = describe_map_cli(args.model, describe_template, ctx, img)
                 else:
                     desc_md = describe_map(args.model, describe_template, ctx,
                                            b64, MEDIA_TYPES[img.suffix.lower()])
