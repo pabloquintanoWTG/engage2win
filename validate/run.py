@@ -334,12 +334,12 @@ def build_review(results):
             lst = lambda items: "".join(f"<li>{esc(x)}</li>" for x in items)
             band = rag(ev.get("overall", 0))
             eval_body = f"""
-              <div class="verdict {band}">
-                <div class="rag-badge {band}">{RAG_LABEL[band]}</div>
-                <div><h3>{esc(ev.get('verdict',{}).get('title',''))}</h3>
+              <div class="verdict">
+                <div class="vtext"><h3>{esc(ev.get('verdict',{}).get('title',''))}</h3>
                      <p>{esc(ev.get('verdict',{}).get('text',''))}</p>
                      <span class="chips">confidence: {esc(ev.get('confidence','—'))} ·
                        lang: {esc(ev.get('language','—'))}</span></div>
+                <div class="rag-ball {band}">{RAG_LABEL[band]}</div>
               </div>
               <div class="dims">{dims}</div>
               <div class="cols">
@@ -396,8 +396,10 @@ def build_review(results):
        font-size:13px;color:#666;font-weight:500}}
  .tab.active{{background:#4F46E5;color:#fff}}
  .verdict{{display:flex;gap:14px;align-items:center;margin-bottom:12px}}
- .rag-badge{{min-width:74px;height:46px;padding:0 14px;border-radius:10px;display:grid;place-items:center;
-             font-weight:800;font-size:15px;letter-spacing:.5px;color:#fff;flex:none}}
+ .vtext{{flex:1;min-width:0}}
+ .rag-ball{{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;flex:none;
+            font-weight:800;font-size:12px;letter-spacing:.5px;color:#fff;
+            box-shadow:0 2px 6px rgba(20,22,59,.2)}}
  .green{{background:#1f9d4d}} .amber{{background:#e8820e}} .red{{background:#d64545}}
  .verdict h3{{margin:0;font-size:15px}} .verdict p{{margin:2px 0 0;color:#555;font-size:13px}}
  .chips{{font-size:11px;color:#888}}
