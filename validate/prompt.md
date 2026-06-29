@@ -41,8 +41,11 @@ inventing content.
    - `"clarity"` — how clearly the map communicates; structure, legibility, organisation.
    - `"innovation"` — originality of thinking; fresh angles, non-obvious approaches.
    - `"rigor"` — logical soundness; no contradictions, claims are grounded and defensible.
-3. **Overall score** 0–100. Set `verdict.band`: ≥80 high, 60–79 mid, <60 low, with a
-   short `title` and `text` summarising the map's quality.
+3. **Overall score** 0–100, with a short `title` and `text` summarising the map's
+   quality. The platform reports results as a traffic light, not a number, so score
+   with that consequence in mind: **70+ = GREEN** (a strong, usable map), **60–69 =
+   AMBER** (solid but with real gaps to close), **<60 = RED** (significant rework
+   needed). Set `verdict.band` to `green`, `amber`, or `red` to match.
 4. **Strengths** — specific things done well, referencing real content on the map.
    Each strength must name something visible and specific, not a generic template line.
 5. **Recommendations** — concrete, actionable next steps to strengthen the map.

@@ -17,7 +17,7 @@
       "additionalProperties": false,
       "required": ["band", "title", "text"],
       "properties": {
-        "band": { "type": "string", "enum": ["high", "mid", "low"] },
+        "band": { "type": "string", "enum": ["green", "amber", "red"] },
         "title": { "type": "string", "description": "Short headline verdict." },
         "text": { "type": "string", "description": "1-2 sentence plain-language verdict." }
       }

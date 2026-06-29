@@ -300,6 +300,18 @@ def normalise(data):
 
 
 # ---------------------------------------------------------------- review page
+def rag(score):
+    """Map a 0-100 score to a Red/Amber/Green band. green ≥70, amber 60-69, red <60."""
+    try:
+        s = int(score)
+    except (TypeError, ValueError):
+        s = 0
+    return "green" if s >= 70 else ("amber" if s >= 60 else "red")
+
+
+RAG_LABEL = {"green": "GREEN", "amber": "AMBER", "red": "RED"}
+
+
 def build_review(results):
     def esc(s):
         return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -316,14 +328,14 @@ def build_review(results):
         else:
             dims = "".join(
                 f'<div class="dim"><span>{esc(d["key"])}</span>'
-                f'<div class="bar"><i style="width:{int(d["score"])}%"></i></div>'
-                f'<b>{int(d["score"])}</b></div>' for d in ev.get("dimensions", [])
+                f'<span class="rag {rag(d["score"])}">{RAG_LABEL[rag(d["score"])]}</span></div>'
+                for d in ev.get("dimensions", [])
             )
             lst = lambda items: "".join(f"<li>{esc(x)}</li>" for x in items)
-            band = ev.get("verdict", {}).get("band", "mid")
+            band = rag(ev.get("overall", 0))
             eval_body = f"""
               <div class="verdict {band}">
-                <div class="score">{int(ev.get('overall',0))}</div>
+                <div class="rag-badge {band}">{RAG_LABEL[band]}</div>
                 <div><h3>{esc(ev.get('verdict',{}).get('title',''))}</h3>
                      <p>{esc(ev.get('verdict',{}).get('text',''))}</p>
                      <span class="chips">confidence: {esc(ev.get('confidence','—'))} ·
@@ -384,14 +396,15 @@ def build_review(results):
        font-size:13px;color:#666;font-weight:500}}
  .tab.active{{background:#4F46E5;color:#fff}}
  .verdict{{display:flex;gap:14px;align-items:center;margin-bottom:12px}}
- .verdict .score{{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;
-                 font-weight:800;font-size:20px;color:#fff;flex:none}}
- .verdict.high .score{{background:#2e9e4f}} .verdict.mid .score{{background:#e0a200}} .verdict.low .score{{background:#d64545}}
+ .rag-badge{{min-width:74px;height:46px;padding:0 14px;border-radius:10px;display:grid;place-items:center;
+             font-weight:800;font-size:15px;letter-spacing:.5px;color:#fff;flex:none}}
+ .green{{background:#1f9d4d}} .amber{{background:#e8820e}} .red{{background:#d64545}}
  .verdict h3{{margin:0;font-size:15px}} .verdict p{{margin:2px 0 0;color:#555;font-size:13px}}
  .chips{{font-size:11px;color:#888}}
  .dims{{display:grid;gap:6px;margin:10px 0 14px}}
- .dim{{display:grid;grid-template-columns:90px 1fr 34px;align-items:center;gap:8px;font-size:12px}}
- .bar{{background:#eceefb;border-radius:6px;height:8px;overflow:hidden}} .bar i{{display:block;height:100%;background:#4F46E5}}
+ .dim{{display:grid;grid-template-columns:90px 1fr;align-items:center;gap:8px;font-size:12px}}
+ .rag{{justify-self:start;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:700;
+       letter-spacing:.5px;color:#fff}}
  .cols{{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}
  @media(max-width:680px){{.cols{{grid-template-columns:1fr}}}}
  .cols h4{{margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#4F46E5}}

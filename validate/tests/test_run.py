@@ -174,3 +174,23 @@ class TestExtractJson:
             assert False, "should have raised"
         except ValueError:
             pass
+
+
+# ---------------------------------------------------------------- rag bands
+class TestRag:
+    def test_green_at_and_above_70(self):
+        assert run.rag(70) == "green"
+        assert run.rag(74) == "green"
+        assert run.rag(100) == "green"
+
+    def test_amber_60_to_69(self):
+        assert run.rag(60) == "amber"
+        assert run.rag(69) == "amber"
+
+    def test_red_below_60(self):
+        assert run.rag(59) == "red"
+        assert run.rag(0) == "red"
+
+    def test_handles_bad_input(self):
+        assert run.rag(None) == "red"
+        assert run.rag("x") == "red"
