@@ -28,10 +28,29 @@ class TestCallModelCli:
 
         assert out == '{"overall": 75}'
         cmd = mock_run.call_args[0][0]
-        assert cmd[0] == "claude"
+        assert cmd[0].lower().endswith("claude.exe") or cmd[0] == "claude"
         assert "-p" in cmd
-        assert "--image" in cmd
-        assert str(image) in cmd
+        assert "--dangerously-skip-permissions" in cmd
+        assert "--tools" in cmd
+        assert "Read" in cmd
+        prompt = cmd[5]
+        assert str(image) in prompt
+        assert "inspect" in prompt.lower()
+
+    def test_uses_resolved_claude_executable_when_available(self, tmp_path):
+        image = tmp_path / "map.jpg"
+        image.write_bytes(b"fake")
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = '{"overall": 75}'
+        mock_result.stderr = ""
+
+        with patch("subprocess.run", return_value=mock_result) as mock_run, \
+             patch("shutil.which", return_value=r"C:\\Program Files\\Claude\\claude.exe"):
+            run.call_model_cli("claude-sonnet-4-6", "evaluate this", image)
+
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0].replace('\\', '\\') == r"C:\\Program Files\\Claude\\claude.exe"
 
     def test_raises_on_nonzero_exit(self, tmp_path):
         image = tmp_path / "map.jpg"
@@ -66,9 +85,10 @@ class TestDescribeMapCli:
             out = run.describe_map_cli("claude-sonnet-4-6", template, ctx, image)
 
         assert out == "## Map overview\nThis is a map."
-        called_prompt = mock_run.call_args[0][0][2]  # -p <prompt>
+        called_prompt = mock_run.call_args[0][0][5]  # -p <prompt>
         assert "Alice" in called_prompt
         assert "deal" in called_prompt
+        assert "inspect" in called_prompt.lower()
 
     def test_raises_on_nonzero_exit(self, tmp_path):
         image = tmp_path / "map.jpg"
@@ -85,6 +105,32 @@ class TestDescribeMapCli:
                 assert False, "should have raised"
             except RuntimeError as e:
                 assert "auth error" in str(e)
+
+
+# ---------------------------------------------------------------- backend selection
+class TestBackendSelection:
+    def test_prefers_explicit_claude_cli_flag(self):
+        args = type("Args", (), {"live": False, "claude_cli": True, "dry_run": False})()
+        assert run.resolve_backend(args) == "claude_cli"
+
+    def test_uses_claude_cli_when_available(self, monkeypatch):
+        monkeypatch.setattr(run.shutil, "which", lambda name: "/usr/bin/claude")
+        args = type("Args", (), {"live": False, "claude_cli": False, "dry_run": False})()
+        assert run.resolve_backend(args) == "claude_cli"
+
+    def test_falls_back_to_dry_run_without_backend(self, monkeypatch):
+        monkeypatch.setattr(run.shutil, "which", lambda name: None)
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "", prepend=False)
+        args = type("Args", (), {"live": False, "claude_cli": False, "dry_run": False})()
+        assert run.resolve_backend(args) == "dry_run"
+
+
+# ---------------------------------------------------------------- prompt guidance
+class TestPromptGuidance:
+    def test_prompt_requires_specific_map_evidence(self):
+        prompt = run.PROMPT_PATH.read_text(encoding="utf-8")
+        assert "must cite specific evidence" in prompt.lower()
+        assert "concrete note" in prompt.lower() or "visible evidence" in prompt.lower()
 
 
 # ---------------------------------------------------------------- dry-run still works (no subprocess)

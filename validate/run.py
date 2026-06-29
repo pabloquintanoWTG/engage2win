@@ -28,6 +28,7 @@ import argparse
 import base64
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -110,6 +111,18 @@ def extract_json(text):
     return json.loads(text[start:end + 1])
 
 
+def resolve_backend(args):
+    if getattr(args, "live", False):
+        return "live"
+    if getattr(args, "claude_cli", False):
+        return "claude_cli"
+    if shutil.which("claude"):
+        return "claude_cli"
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return "live"
+    return "dry_run"
+
+
 # ---------------------------------------------------------------- model calls
 def _anthropic_client():
     try:
@@ -152,12 +165,38 @@ def describe_map(model, describe_template, ctx, image_b64, media_type):
 
 
 # ---------------------------------------------------------------- claude CLI backend
+def _build_cli_prompt(prompt_text, image_path):
+    image_hint = f"Inspect the image file at {image_path} and answer the following request."
+    return f"{image_hint}\n\n{prompt_text}"
+
+
+def _resolve_claude_executable():
+    candidates = []
+    if shutil.which("claude"):
+        candidates.append(shutil.which("claude"))
+
+    win_candidates = [
+        r"C:\Program Files\Anthropic\Claude\claude.exe",
+        r"C:\Users\pablo.quintano\AppData\Local\Microsoft\WinGet\Packages\Anthropic.ClaudeCode_Microsoft.Winget.Source_8wekyb3d8bbwe\claude.exe",
+        r"C:\Users\pablo.quintano\AppData\Local\Programs\Claude\claude.exe",
+    ]
+    for path in win_candidates:
+        if os.path.exists(path):
+            candidates.append(path)
+
+    return candidates[0] if candidates else "claude"
+
+
 def call_model_cli(model, prompt_text, image_path):
-    """Call the local `claude` CLI with an image file. No API key needed."""
+    """Call the local `claude` CLI by asking it to inspect the image file directly."""
+    cli_prompt = _build_cli_prompt(prompt_text, image_path)
+    cli_executable = _resolve_claude_executable()
     result = subprocess.run(
-        ["claude", "-p", prompt_text, "--image", str(image_path)],
+        [cli_executable, "--dangerously-skip-permissions", "--tools", "Read", "-p", cli_prompt],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -169,10 +208,14 @@ def call_model_cli(model, prompt_text, image_path):
 def describe_map_cli(model, describe_template, ctx, image_path):
     """Call the local `claude` CLI for the description pass."""
     prompt_text = fill_prompt(describe_template, ctx)
+    cli_prompt = _build_cli_prompt(prompt_text, image_path)
+    cli_executable = _resolve_claude_executable()
     result = subprocess.run(
-        ["claude", "-p", prompt_text, "--image", str(image_path)],
+        [cli_executable, "--dangerously-skip-permissions", "--tools", "Read", "-p", cli_prompt],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -386,10 +429,32 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="Process only the first N maps (0 = all).")
     ap.add_argument("--rebuild", action="store_true", help="Rebuild review.html from saved outputs, no API calls.")
     args = ap.parse_args()
-    if args.live or args.claude_cli:
-        args.dry_run = False
+
+    # Windows consoles default to cp1252, which cannot encode the arrows / ticks
+    # this script prints (→ • ✓ ✗). Force UTF-8 so real runs don't crash mid-prompt.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
 
     load_env()
+
+    backend = resolve_backend(args)
+    if backend == "claude_cli":
+        args.claude_cli = True
+        args.live = False
+        args.dry_run = False
+    elif backend == "live":
+        args.live = True
+        args.claude_cli = False
+        args.dry_run = False
+    else:
+        args.dry_run = True
+
+    if args.live and not os.environ.get("ANTHROPIC_API_KEY"):
+        sys.exit("ANTHROPIC_API_KEY not set. Put it in ../.env.local, or use --claude-cli instead.")
+
     OUTPUT_DIR.mkdir(exist_ok=True)
 
     if args.rebuild:
@@ -433,6 +498,9 @@ def main():
         sys.exit("ANTHROPIC_API_KEY not set. Put it in ../.env.local, or use --claude-cli instead.")
 
     language = ask_language() if not args.dry_run else "en"
+
+    if args.dry_run:
+        print("No live backend detected; falling back to dry-run stubs. Install the Claude CLI or set ANTHROPIC_API_KEY to get real evaluations.\n")
 
     mode_label = " [DRY RUN]" if args.dry_run else (" [claude CLI]" if args.claude_cli else " [live SDK]")
     print(f"Evaluating {len(images)} map(s) with model '{args.model}'{mode_label}\n")
