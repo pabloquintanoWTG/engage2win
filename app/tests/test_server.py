@@ -61,6 +61,18 @@ def test_analyze_rejects_bad_extension(client):
     assert r.status_code == 400
 
 
+def test_oversized_upload_returns_json_413(client):
+    # shrink the cap so we don't have to ship 20 MB through the test
+    server.app.config["MAX_CONTENT_LENGTH"] = 64
+    try:
+        data = {"image": (io.BytesIO(b"0" * 4096), "big.png")}
+        r = client.post("/analyze", data=data, content_type="multipart/form-data")
+        assert r.status_code == 413
+        assert r.is_json and "too large" in r.get_json()["error"].lower()
+    finally:
+        server.app.config["MAX_CONTENT_LENGTH"] = server.MAX_BYTES
+
+
 def test_analyze_starts_job_and_returns_id(client):
     # block the worker thread so we only test the route's response
     with patch.object(server.threading, "Thread"):

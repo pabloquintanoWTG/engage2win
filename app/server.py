@@ -101,6 +101,12 @@ def run_job(job_id, image_path, ctx, model):
 
 
 # --- routes ----------------------------------------------------------------
+@app.errorhandler(413)
+def too_large(_e):
+    mb = MAX_BYTES // (1024 * 1024)
+    return jsonify(error=f"That photo is too large (limit {mb} MB). Try a smaller image."), 413
+
+
 @app.route("/")
 def index():
     return render_template("index.html")

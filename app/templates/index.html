@@ -94,11 +94,15 @@ document.getElementById("form").addEventListener("submit", async (e) => {
   markStep("prepare");
 
   const fd = new FormData(e.target);
-  let res;
+  let res, data;
   try {
     res = await fetch("/analyze", { method: "POST", body: fd });
-  } catch (err) { return fail("Network error: " + err.message); }
-  const data = await res.json();
+    data = await res.json();
+  } catch (err) {
+    return fail(res && !res.ok
+      ? `Upload failed (${res.status}). The file may be too large.`
+      : "Network error: " + err.message);
+  }
   if (!res.ok) return fail(data.error || "Upload failed.");
 
   poll(data.job_id);
