@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Engage2Win — analyze a map{% endblock %}
+{% block body %}
+<div class="page">
+  <h1 class="title">Analyze an engage2win map</h1>
+  <p class="lead">Upload a photo of your thinking map and add a little context. You'll get a
+    Red/Amber/Green methodology evaluation and a structured description in about a minute.</p>
+
+  <form id="form" class="card form-card" autocomplete="off">
+    <div class="field">
+      <label>Map photo</label>
+      <label class="drop" id="drop" for="image">
+        <div id="dropText"><strong>Click to choose</strong> or drag a photo here<br>
+          <small>JPG, PNG or WEBP · up to 20&nbsp;MB</small></div>
+        <img class="preview" id="preview" alt="" style="display:none">
+      </label>
+      <input type="file" id="image" name="image" accept=".jpg,.jpeg,.png,.webp" hidden required>
+    </div>
+
+    <div class="row">
+      <div class="field"><label>Participant / team</label><input type="text" name="name" placeholder="e.g. ACME account team"></div>
+      <div class="field"><label>Role / department</label><input type="text" name="role" placeholder="e.g. Sales / Presales"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Methodology area</label><input type="text" name="area" placeholder="e.g. Consensus visioning"></div>
+      <div class="field"><label>Session topic</label><input type="text" name="topic" placeholder="e.g. Outside-in value chain"></div>
+    </div>
+    <div class="field" style="max-width:220px">
+      <label>Output language</label>
+      <select name="language">
+        <option value="en" selected>English</option>
+        <option value="es">Spanish</option>
+        <option value="ca">Catalan</option>
+      </select>
+    </div>
+
+    <button type="submit" class="btn" id="submitBtn">Analyze map</button>
+  </form>
+</div>
+
+<!-- live progress overlay -->
+<div class="overlay" id="overlay">
+  <div class="progress-card">
+    <h3>Analyzing your map…</h3>
+    <ul class="steps" id="steps">
+      <li data-step="prepare"><span class="dot"></span> Preparing the map</li>
+      <li data-step="evaluate"><span class="dot"></span> Reading &amp; scoring the map</li>
+      <li data-step="describe"><span class="dot"></span> Writing the description</li>
+      <li data-step="done"><span class="dot"></span> Done</li>
+    </ul>
+    <div class="err-box" id="errBox" style="display:none"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const STEP_ORDER = ["prepare", "evaluate", "describe", "done"];
+const fileInput = document.getElementById("image");
+const drop = document.getElementById("drop");
+const preview = document.getElementById("preview");
+const dropText = document.getElementById("dropText");
+
+function showFile(f) {
+  if (!f) return;
+  preview.src = URL.createObjectURL(f);
+  preview.style.display = "block";
+  dropText.innerHTML = "<strong>" + f.name + "</strong><br><small>click to change</small>";
+}
+fileInput.addEventListener("change", () => showFile(fileInput.files[0]));
+["dragover","dragenter"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("dragover"); }));
+["dragleave","drop"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("dragover"); }));
+drop.addEventListener("drop", ev => { const f = ev.dataTransfer.files[0]; if (f) { fileInput.files = ev.dataTransfer.files; showFile(f); } });
+
+function markStep(step) {
+  const idx = STEP_ORDER.indexOf(step);
+  document.querySelectorAll("#steps li").forEach(li => {
+    const i = STEP_ORDER.indexOf(li.dataset.step);
+    li.classList.toggle("done", i < idx || step === "done");
+    li.classList.toggle("active", i === idx && step !== "done");
+  });
+}
+
+const overlay = document.getElementById("overlay");
+const errBox = document.getElementById("errBox");
+const submitBtn = document.getElementById("submitBtn");
+
+document.getElementById("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!fileInput.files[0]) return;
+  submitBtn.disabled = true;
+  errBox.style.display = "none";
+  overlay.classList.add("show");
+  markStep("prepare");
+
+  const fd = new FormData(e.target);
+  let res;
+  try {
+    res = await fetch("/analyze", { method: "POST", body: fd });
+  } catch (err) { return fail("Network error: " + err.message); }
+  const data = await res.json();
+  if (!res.ok) return fail(data.error || "Upload failed.");
+
+  poll(data.job_id);
+});
+
+async function poll(jobId) {
+  try {
+    const r = await fetch("/status/" + jobId);
+    const s = await r.json();
+    if (s.state === "error") return fail(s.error);
+    markStep(s.step);
+    if (s.state === "done" && s.result_url) { window.location = s.result_url; return; }
+    setTimeout(() => poll(jobId), 1500);
+  } catch (err) { fail("Lost connection: " + err.message); }
+}
+
+function fail(msg) {
+  errBox.textContent = msg;
+  errBox.style.display = "block";
+  submitBtn.disabled = false;
+}
+</script>
+{% endblock %}

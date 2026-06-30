@@ -11,6 +11,10 @@
 /validate/output/
 /validate/review.html
 
+# app — uploaded map photos (never commit)
+/app/uploads/*
+!/app/uploads/.gitkeep
+
 # python
 __pycache__/
 *.pyc

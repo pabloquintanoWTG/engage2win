@@ -1,0 +1,4 @@
+# Engage2Win Phase 1 app. Also relies on the Phase 0 deps in
+# validate/requirements.txt (anthropic, jsonschema) — install both.
+Flask>=3.0
+jsonschema>=4.0.0
