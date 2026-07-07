@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Engage2Win — customers{% endblock %}
+{% block body %}
+<div class="page">
+  <a href="{{ url_for('index') }}" class="btn secondary" style="margin-bottom:18px">← Workspace</a>
+  <h1 class="title">Customers</h1>
+  <p class="lead">Each customer holds the engage2win sessions you run for them.</p>
+
+  <form method="post" action="{{ url_for('workspace.customers') }}" class="card form-card" style="margin-bottom:22px">
+    <div class="row">
+      <div class="field">
+        <label>Customer name</label>
+        <input type="text" name="name" placeholder="e.g. ACME Corp" required autofocus>
+      </div>
+      <div class="field">
+        <label>Industry</label>
+        <input type="text" name="industry" placeholder="e.g. Consumer goods">
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <input type="text" name="notes" placeholder="Optional context">
+    </div>
+    <button type="submit" class="btn">Create customer</button>
+  </form>
+
+  {% if customers %}
+  <div class="cards-grid">
+    {% for c in customers %}
+    <a class="tile" href="{{ url_for('workspace.customer_detail', customer_id=c.id) }}">
+      <div class="tile-title">{{ c.name }}</div>
+      {% if c.industry %}<div class="tile-sub">{{ c.industry }}</div>{% endif %}
+      <div class="tile-meta">{{ c.sessions|length }} session{{ '' if c.sessions|length == 1 else 's' }}</div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">No customers yet — create one above.</div>
+  {% endif %}
+</div>
+{% endblock %}

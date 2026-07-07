@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Engage2Win — {{ session.title }}{% endblock %}
+{% block body %}
+<div class="page">
+  <a href="{{ url_for('workspace.customer_detail', customer_id=session.customer_id) }}" class="btn secondary" style="margin-bottom:18px">← {{ session.customer.name }}</a>
+  <div class="session-head">
+    <h1 class="title">{{ session.title }}</h1>
+    <span class="status-pill {{ session.status }}">{{ session.status }}</span>
+  </div>
+  <p class="lead">{{ session.customer.name }}{% if session.scheduled_date %} · {{ session.scheduled_date }}{% endif %}</p>
+
+  <div class="two-col">
+    <div>
+      <div class="section-head"><h2>Session details</h2></div>
+      <form method="post" action="{{ url_for('workspace.edit_session', session_id=session.id) }}" class="card form-card">
+        <div class="field"><label>Title</label><input type="text" name="title" value="{{ session.title }}" required></div>
+        <div class="field"><label>Objectives</label>
+          <textarea name="objectives" rows="4" class="ta">{{ session.objectives }}</textarea></div>
+        <div class="row">
+          <div class="field"><label>Status</label>
+            <select name="status">
+              {% for st in statuses %}<option value="{{ st }}" {{ 'selected' if st==session.status }}>{{ st }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field"><label>Language</label>
+            <select name="language">
+              {% for l in languages %}<option value="{{ l }}" {{ 'selected' if l==session.language }}>{{ l }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="field"><label>Date</label>
+          <input type="date" name="scheduled_date" value="{{ session.scheduled_date.isoformat() if session.scheduled_date else '' }}"></div>
+        <button type="submit" class="btn">Save session</button>
+      </form>
+    </div>
+
+    <div>
+      <div class="section-head"><h2>Participants</h2></div>
+      <form method="post" action="{{ url_for('workspace.add_participant', session_id=session.id) }}" class="card form-card" style="margin-bottom:16px">
+        <div class="row">
+          <div class="field"><label>Name</label><input type="text" name="name" required></div>
+          <div class="field"><label>Role / dept</label><input type="text" name="role_dept"></div>
+        </div>
+        <div class="field"><label>Email (optional)</label><input type="email" name="email"></div>
+        <button type="submit" class="btn secondary">Add participant</button>
+      </form>
+
+      {% if session.participants %}
+      <div class="list">
+        {% for p in session.participants %}
+        <div class="list-row static">
+          <span class="list-title">{{ p.name }}</span>
+          <span class="list-meta">{{ p.role_dept or '—' }}{% if p.email %} · {{ p.email }}{% endif %}</span>
+          <form method="post" action="{{ url_for('workspace.remove_participant', session_id=session.id, pid=p.id) }}" style="margin-left:auto">
+            <button type="submit" class="linkbtn-danger" title="Remove">✕</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">No participants added yet.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

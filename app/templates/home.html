@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Engage2Win — workspace{% endblock %}
+{% block body %}
+<div class="page">
+  <h1 class="title">Your workspace</h1>
+  <p class="lead">Plan and run engage2win sessions, or analyze a single map on the fly.</p>
+
+  <div class="cta-row">
+    <a class="cta" href="{{ url_for('workspace.customers') }}">
+      <span class="cta-title">＋ New customer</span>
+      <span class="cta-sub">Set up a customer to run a session for</span>
+    </a>
+    <a class="cta alt" href="{{ url_for('analyze_new') }}">
+      <span class="cta-title">🗺 Analyze a map</span>
+      <span class="cta-sub">Upload a map photo for a quick RAG evaluation</span>
+    </a>
+  </div>
+
+  <div class="section-head">
+    <h2>Customers</h2>
+    <a href="{{ url_for('workspace.customers') }}" class="btn secondary">Manage customers</a>
+  </div>
+
+  {% if customers %}
+  <div class="cards-grid">
+    {% for c in customers %}
+    <a class="tile" href="{{ url_for('workspace.customer_detail', customer_id=c.id) }}">
+      <div class="tile-title">{{ c.name }}</div>
+      {% if c.industry %}<div class="tile-sub">{{ c.industry }}</div>{% endif %}
+      <div class="tile-meta">{{ c.sessions|length }} session{{ '' if c.sessions|length == 1 else 's' }}</div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">No customers yet. <a href="{{ url_for('workspace.customers') }}">Create your first customer</a> to start planning a session.</div>
+  {% endif %}
+</div>
+{% endblock %}

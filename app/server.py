@@ -33,8 +33,9 @@ import run  # noqa: E402  (validate/run.py — analysis core, reused as-is)
 
 from jsonschema import validate as js_validate, ValidationError  # noqa: E402
 from flask_login import LoginManager, login_required, current_user  # noqa: E402
-from models import db, User  # noqa: E402
+from models import db, User, Customer, Session, owned  # noqa: E402
 from auth import auth_bp  # noqa: E402
+from workspace import workspace_bp  # noqa: E402
 
 UPLOAD_DIR = APP_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -76,6 +77,7 @@ def _unauthorized():
 
 
 app.register_blueprint(auth_bp)
+app.register_blueprint(workspace_bp)
 
 with app.app_context():
     db.create_all()
@@ -148,6 +150,15 @@ def too_large(_e):
 @app.route("/")
 @login_required
 def index():
+    # Workspace dashboard: the user's customers (admins see all) + quick actions.
+    customers = owned(Customer, current_user).order_by(Customer.name).all()
+    session_count = owned(Session, current_user).count()
+    return render_template("home.html", customers=customers, session_count=session_count)
+
+
+@app.route("/analyze/new")
+@login_required
+def analyze_new():
     return render_template("index.html")
 
 

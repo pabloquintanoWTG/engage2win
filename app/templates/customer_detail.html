@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Engage2Win — {{ customer.name }}{% endblock %}
+{% block body %}
+<div class="page">
+  <a href="{{ url_for('workspace.customers') }}" class="btn secondary" style="margin-bottom:18px">← Customers</a>
+  <h1 class="title">{{ customer.name }}</h1>
+  <p class="lead">{% if customer.industry %}{{ customer.industry }}{% endif %}</p>
+
+  <div class="two-col">
+    <div>
+      <div class="section-head"><h2>Sessions</h2></div>
+      <form method="post" action="{{ url_for('workspace.create_session', customer_id=customer.id) }}" class="card form-card" style="margin-bottom:18px">
+        <div class="field">
+          <label>New session title</label>
+          <input type="text" name="title" placeholder="e.g. SC Visioning Workshop" required>
+        </div>
+        <div class="field">
+          <label>Objectives</label>
+          <input type="text" name="objectives" placeholder="What this session should achieve">
+        </div>
+        <div class="row">
+          <div class="field">
+            <label>Language</label>
+            <select name="language">
+              {% for l in languages %}<option value="{{ l }}" {{ 'selected' if l=='en' }}>{{ l }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>Date</label>
+            <input type="date" name="scheduled_date">
+          </div>
+        </div>
+        <button type="submit" class="btn">Create session</button>
+      </form>
+
+      {% if customer.sessions %}
+      <div class="list">
+        {% for s in customer.sessions %}
+        <a class="list-row" href="{{ url_for('workspace.session_workspace', session_id=s.id) }}">
+          <span class="list-title">{{ s.title }}</span>
+          <span class="status-pill {{ s.status }}">{{ s.status }}</span>
+          <span class="list-meta">{{ s.scheduled_date or '—' }} · {{ s.participants|length }} participant{{ '' if s.participants|length == 1 else 's' }}</span>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">No sessions yet for this customer.</div>
+      {% endif %}
+    </div>
+
+    <div>
+      <div class="section-head"><h2>Details</h2></div>
+      <form method="post" action="{{ url_for('workspace.edit_customer', customer_id=customer.id) }}" class="card form-card">
+        <div class="field"><label>Name</label><input type="text" name="name" value="{{ customer.name }}" required></div>
+        <div class="field"><label>Industry</label><input type="text" name="industry" value="{{ customer.industry }}"></div>
+        <div class="field"><label>Notes</label><input type="text" name="notes" value="{{ customer.notes }}"></div>
+        <button type="submit" class="btn secondary">Save changes</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

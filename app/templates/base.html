@@ -11,6 +11,11 @@
     <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='e2open-logo-white.svg') }}" alt="e2open"></a>
     <div class="product">Engage2Win <span>· methodology map analysis</span></div>
     {% if current_user.is_authenticated %}
+    <nav class="topnav">
+      <a href="{{ url_for('index') }}">Workspace</a>
+      <a href="{{ url_for('workspace.customers') }}">Customers</a>
+      <a href="{{ url_for('analyze_new') }}">Analyze a map</a>
+    </nav>
     <div class="userbar">
       {% if current_user.is_admin %}<a href="{{ url_for('auth.invites') }}">Invites</a>{% endif %}
       <span class="who">{{ current_user.name or current_user.email }}

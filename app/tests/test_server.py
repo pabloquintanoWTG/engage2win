@@ -49,8 +49,14 @@ def _png():
     return (io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"0" * 64), "map.png")
 
 
-def test_index_renders_form(client):
+def test_home_dashboard_renders(client):
     r = client.get("/")
+    assert r.status_code == 200
+    assert b"Your workspace" in r.data          # dashboard, not the upload form
+
+
+def test_analyze_form_renders(client):
+    r = client.get("/analyze/new")
     assert r.status_code == 200
     assert b"Analyze an engage2win map" in r.data
     assert b'name="image"' in r.data

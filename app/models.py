@@ -80,3 +80,72 @@ class Invite(db.Model):
 def user_count():
     """How many users exist — used to decide first-user-is-admin vs invite-required."""
     return db.session.query(User).count()
+
+
+# ---------------------------------------------------------------- Phase 2 models
+LANGUAGES = ("en", "es", "ca")
+SESSION_STATUSES = ("planned", "running", "complete")
+
+
+class Customer(db.Model):
+    __tablename__ = "customers"
+
+    id = db.Column(db.Integer, primary_key=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    industry = db.Column(db.String(255), nullable=False, default="")
+    notes = db.Column(db.Text, nullable=False, default="")
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    owner = db.relationship("User")
+    sessions = db.relationship("Session", back_populates="customer",
+                               cascade="all, delete-orphan", order_by="Session.created_at.desc()")
+
+    def __repr__(self):
+        return f"<Customer {self.name}>"
+
+
+class Session(db.Model):
+    __tablename__ = "sessions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), nullable=False, index=True)
+    owner_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    title = db.Column(db.String(255), nullable=False)
+    objectives = db.Column(db.Text, nullable=False, default="")
+    language = db.Column(db.String(5), nullable=False, default="en")
+    scheduled_date = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(20), nullable=False, default="planned")
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    customer = db.relationship("Customer", back_populates="sessions")
+    owner = db.relationship("User")
+    participants = db.relationship("Participant", back_populates="session",
+                                   cascade="all, delete-orphan", order_by="Participant.id")
+
+    def __repr__(self):
+        return f"<Session {self.title} ({self.status})>"
+
+
+class Participant(db.Model):
+    __tablename__ = "participants"
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey("sessions.id"), nullable=False, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    role_dept = db.Column(db.String(255), nullable=False, default="")
+    email = db.Column(db.String(255), nullable=True)
+
+    session = db.relationship("Session", back_populates="participants")
+
+    def __repr__(self):
+        return f"<Participant {self.name}>"
+
+
+def owned(model, user):
+    """Query helper: rows owned by `user`, or all rows if the user is an admin.
+    Applies to any model with an `owner_user_id` column (Customer, Session)."""
+    q = model.query
+    if getattr(user, "is_admin", False):
+        return q
+    return q.filter(model.owner_user_id == user.id)
