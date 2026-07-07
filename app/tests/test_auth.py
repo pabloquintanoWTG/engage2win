@@ -91,6 +91,22 @@ def test_login_logout_and_bad_password():
     assert good.status_code in (200, 302)
 
 
+def test_login_ignores_external_next_redirect():
+    """Open-redirect guard: an external ?next must not be honoured."""
+    c = server.app.test_client()
+    _register(c, "admin@example.com")
+    c.post("/logout")
+    r = c.post("/login?next=https://evil.example.com/steal",
+              data={"email": "admin@example.com", "password": "password123"})
+    assert r.status_code == 302
+    assert "evil.example.com" not in r.headers["Location"]
+    # a local next is still honoured
+    r2 = c.post("/login?next=/result/abc",
+               data={"email": "admin@example.com", "password": "password123"})
+    # (already authenticated now → app redirects home, but must never be external)
+    assert "evil.example.com" not in r2.headers.get("Location", "")
+
+
 def test_unauthenticated_page_redirects_and_api_401():
     c = server.app.test_client()
     page = c.get("/")

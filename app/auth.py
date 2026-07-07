@@ -6,6 +6,7 @@ Account rules (see docs/prd/phase1-auth-spec.md):
 - Admins create invites (optionally pre-setting email + role).
 """
 from functools import wraps
+from urllib.parse import urlparse
 
 from flask import (Blueprint, render_template, request, redirect, url_for,
                    flash, abort)
@@ -16,6 +17,18 @@ from models import db, User, Invite, ROLES, user_count, utcnow
 auth_bp = Blueprint("auth", __name__)
 
 MIN_PASSWORD = 8
+
+
+def _safe_next(target):
+    """Return `target` only if it's a local path (prevents open redirects)."""
+    if not target:
+        return None
+    parsed = urlparse(target)
+    if parsed.scheme or parsed.netloc:      # absolute/external URL — reject
+        return None
+    if not target.startswith("/") or target.startswith("//"):
+        return None
+    return target
 
 
 def admin_required(view):
@@ -101,8 +114,7 @@ def login():
             flash("Incorrect email or password.", "error")
             return render_template("login.html", email=email), 401
         login_user(user)
-        next_url = request.args.get("next")
-        return redirect(next_url or url_for("index"))
+        return redirect(_safe_next(request.args.get("next")) or url_for("index"))
 
     return render_template("login.html")
 
