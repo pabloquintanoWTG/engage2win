@@ -32,9 +32,16 @@ VALID_EVAL = {
 
 
 @pytest.fixture
-def client():
+def client(_fresh_db):
+    """A logged-in client. The first registration becomes the admin, so all the
+    analyzer routes (now behind @login_required) are reachable."""
     server.app.config.update(TESTING=True)
-    return server.app.test_client()
+    c = server.app.test_client()
+    r = c.post("/register", data={
+        "name": "Tester", "email": "tester@example.com",
+        "password": "password123", "confirm": "password123"})
+    assert r.status_code in (200, 302)
+    return c
 
 
 def _png():

@@ -10,7 +10,24 @@
   <div class="topbar">
     <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='e2open-logo-white.svg') }}" alt="e2open"></a>
     <div class="product">Engage2Win <span>· methodology map analysis</span></div>
+    {% if current_user.is_authenticated %}
+    <div class="userbar">
+      {% if current_user.is_admin %}<a href="{{ url_for('auth.invites') }}">Invites</a>{% endif %}
+      <span class="who">{{ current_user.name or current_user.email }}
+        <em>{{ current_user.role }}</em></span>
+      <form method="post" action="{{ url_for('auth.logout') }}">
+        <button type="submit" class="linkbtn">Sign out</button>
+      </form>
+    </div>
+    {% endif %}
   </div>
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% if msgs %}
+    <div class="flashes">
+      {% for cat, msg in msgs %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+    </div>
+    {% endif %}
+  {% endwith %}
   {% block body %}{% endblock %}
   <div class="toast" id="toast"></div>
   {% block scripts %}{% endblock %}

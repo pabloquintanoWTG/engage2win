@@ -13,13 +13,14 @@ Run:
     python app/server.py            # http://127.0.0.1:5000
 """
 
+import os
 import sys
 import threading
 import uuid
 from pathlib import Path
 
 from flask import (Flask, render_template, request, jsonify, send_from_directory,
-                   abort, url_for)
+                   abort, url_for, redirect)
 from werkzeug.utils import secure_filename
 
 # --- make the proven Phase 0 core importable -------------------------------
@@ -27,9 +28,13 @@ APP_DIR = Path(__file__).resolve().parent
 ROOT = APP_DIR.parent
 VALIDATE_DIR = ROOT / "validate"
 sys.path.insert(0, str(VALIDATE_DIR))
+sys.path.insert(0, str(APP_DIR))
 import run  # noqa: E402  (validate/run.py — analysis core, reused as-is)
 
 from jsonschema import validate as js_validate, ValidationError  # noqa: E402
+from flask_login import LoginManager, login_required, current_user  # noqa: E402
+from models import db, User  # noqa: E402
+from auth import auth_bp  # noqa: E402
 
 UPLOAD_DIR = APP_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -41,6 +46,39 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_BYTES
 
 run.load_env()
+
+# --- auth + database -------------------------------------------------------
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or "dev-insecure-change-me"
+if app.config["SECRET_KEY"] == "dev-insecure-change-me":
+    print("WARNING: SECRET_KEY not set — using an insecure dev key. Set SECRET_KEY in .env.local.")
+app.config["SQLALCHEMY_DATABASE_URI"] = (
+    os.environ.get("DATABASE_URL") or f"sqlite:///{APP_DIR / 'engage2win.db'}")
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db.init_app(app)
+login_manager = LoginManager(app)
+login_manager.login_view = "auth.login"
+
+# API routes answer XHR with JSON; pages redirect to the login screen.
+_API_PREFIXES = ("/analyze", "/status")
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return db.session.get(User, int(user_id))
+
+
+@login_manager.unauthorized_handler
+def _unauthorized():
+    if request.path.startswith(_API_PREFIXES):
+        return jsonify(error="Please sign in to continue."), 401
+    return redirect(url_for("auth.login", next=request.path))
+
+
+app.register_blueprint(auth_bp)
+
+with app.app_context():
+    db.create_all()
 _SCHEMA = None
 _PROMPT = None
 _DESCRIBE = None
@@ -108,11 +146,13 @@ def too_large(_e):
 
 
 @app.route("/")
+@login_required
 def index():
     return render_template("index.html")
 
 
 @app.route("/analyze", methods=["POST"])
+@login_required
 def analyze():
     file = request.files.get("image")
     if file is None or not file.filename:
@@ -141,30 +181,39 @@ def analyze():
     model = request.form.get("model") or run.DEFAULT_MODEL
 
     with _LOCK:
-        _JOBS[job_id] = {"state": "running", "step": "prepare",
+        _JOBS[job_id] = {"state": "running", "step": "prepare", "owner_id": current_user.id,
                          "image": image_path.name, "ctx": ctx, "result": None, "error": None}
 
     threading.Thread(target=run_job, args=(job_id, image_path, ctx, model), daemon=True).start()
     return jsonify(job_id=job_id), 202
 
 
-@app.route("/status/<job_id>")
-def status(job_id):
+def _owned_job(job_id):
+    """Return the job only if it belongs to the current user, else None."""
     with _LOCK:
         job = _JOBS.get(job_id)
-        if job is None:
-            return jsonify(error="Unknown job."), 404
-        payload = {"state": job["state"], "step": job["step"],
-                   "label": STEP_LABELS.get(job["step"], ""), "error": job["error"]}
+    if job is None or job.get("owner_id") != current_user.id:
+        return None
+    return job
+
+
+@app.route("/status/<job_id>")
+@login_required
+def status(job_id):
+    job = _owned_job(job_id)
+    if job is None:
+        return jsonify(error="Unknown job."), 404
+    payload = {"state": job["state"], "step": job["step"],
+               "label": STEP_LABELS.get(job["step"], ""), "error": job["error"]}
     if payload["state"] == "done":
         payload["result_url"] = url_for("result", job_id=job_id)
     return jsonify(payload)
 
 
 @app.route("/result/<job_id>")
+@login_required
 def result(job_id):
-    with _LOCK:
-        job = _JOBS.get(job_id)
+    job = _owned_job(job_id)
     if job is None or job.get("state") != "done":
         abort(404)
     ev = job["result"]["eval"]
@@ -182,7 +231,14 @@ def result(job_id):
 
 
 @app.route("/uploads/<path:filename>")
+@login_required
 def uploaded_file(filename):
+    # Only serve an upload that belongs to one of the current user's jobs.
+    with _LOCK:
+        owned = any(j.get("image") == filename and j.get("owner_id") == current_user.id
+                    for j in _JOBS.values())
+    if not owned:
+        abort(404)
     return send_from_directory(UPLOAD_DIR, filename)
 
 

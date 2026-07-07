@@ -175,3 +175,35 @@ h1.title { font-size: 22px; margin: 4px 0 0; }
   color: #fff; padding: 11px 20px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s;
   pointer-events: none; z-index: 60; }
 .toast.show { opacity: 1; }
+
+/* ---------------------------------------------------------------- auth / user bar */
+.userbar { margin-left: auto; display: flex; align-items: center; gap: 16px; font-size: 13px; }
+.userbar a { color: #fff; opacity: .85; text-decoration: none; }
+.userbar a:hover { opacity: 1; text-decoration: underline; }
+.userbar .who { color: #fff; opacity: .9; }
+.userbar .who em { font-style: normal; opacity: .6; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .5px; margin-left: 4px; }
+.userbar form { margin: 0; }
+.linkbtn { background: none; border: 1px solid rgba(255,255,255,.4); color: #fff; font: inherit;
+  font-size: 12px; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+.linkbtn:hover { background: rgba(255,255,255,.12); }
+
+.flashes { max-width: 1180px; margin: 16px auto 0; padding: 0 20px; display: grid; gap: 8px; }
+.flash { padding: 10px 14px; border-radius: 8px; font-size: 13px; border: 1px solid; }
+.flash.error { background: #fdecea; border-color: #f5c6c2; color: #a3271b; }
+.flash.ok { background: #e9f7ee; border-color: #bfe6cd; color: #1f7a43; }
+
+.auth-card { max-width: 460px; margin: 32px auto; }
+.auth-alt { font-size: 13px; color: var(--text-2); margin-top: 16px; }
+
+/* invites table */
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table th { text-align: left; padding: 10px 14px; background: var(--card-alt); color: var(--accent);
+  font-size: 11px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--line); }
+.table td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.table tr.used { opacity: .55; }
+.table code { background: var(--card-alt); padding: 2px 7px; border-radius: 5px; font-size: 12px; }
+.badge-open { color: #1f7a43; font-weight: 700; font-size: 11px; }
+.badge-used { color: var(--text-2); font-size: 11px; }
+.copyfield { width: 100%; min-width: 240px; font: inherit; font-size: 12px; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 6px; color: var(--text-2); background: #fff; }

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Engage2Win — invites{% endblock %}
+{% block body %}
+<div class="page">
+  <a href="{{ url_for('index') }}" class="btn secondary" style="margin-bottom:18px">← Back to app</a>
+  <h1 class="title">Invitations</h1>
+  <p class="lead">Create a single-use code, then share the registration link with the new user.</p>
+
+  <form method="post" action="{{ url_for('auth.invites') }}" class="card form-card" style="margin-bottom:22px">
+    <div class="row">
+      <div class="field">
+        <label>Email (optional)</label>
+        <input type="email" name="email" placeholder="locks the invite to this address">
+      </div>
+      <div class="field">
+        <label>Role</label>
+        <select name="role">
+          <option value="facilitator" selected>Facilitator</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+    </div>
+    <button type="submit" class="btn">Create invite</button>
+  </form>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <table class="table">
+      <thead><tr><th>Code</th><th>Role</th><th>Email</th><th>Status</th><th>Register link</th></tr></thead>
+      <tbody>
+        {% for inv in invites %}
+        <tr class="{{ 'used' if inv.is_used else '' }}">
+          <td><code>{{ inv.code }}</code></td>
+          <td>{{ inv.role }}</td>
+          <td>{{ inv.email or '—' }}</td>
+          <td>{% if inv.is_used %}<span class="badge-used">used</span>{% else %}<span class="badge-open">open</span>{% endif %}</td>
+          <td>
+            {% if not inv.is_used %}
+            <input class="copyfield" readonly value="{{ register_base }}?code={{ inv.code }}" onclick="this.select()">
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" style="color:var(--text-2);padding:18px">No invites yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

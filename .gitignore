@@ -15,6 +15,9 @@
 /app/uploads/*
 !/app/uploads/.gitkeep
 
+# app — local SQLite database (never commit)
+/app/*.db
+
 # python
 __pycache__/
 *.pyc
