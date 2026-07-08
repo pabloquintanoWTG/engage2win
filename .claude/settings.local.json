@@ -2,7 +2,28 @@
   "permissions": {
     "allow": [
       "Bash(pip show:*)",
-      "Bash(git -C \"C:\\\\Users\\\\pablo.quintano\\\\OneDrive - WiseTech Global\\\\Documents\\\\000_Claude Cowork\\\\DEV\\\\engage2win\" status --short)"
+      "Bash(pip install:*)",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(python *)",
+      "Bash(claude *)",
+      "Bash(pytest *)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "PowerShell(python -c \"import flask_login\" 2>&1)",
+      "PowerShell(python -c \"import flask_sqlalchemy, sqlalchemy; print\\('flask_sqlalchemy', flask_sqlalchemy.__version__, '| sqlalchemy', sqlalchemy.__version__\\)\" 2>&1)",
+      "PowerShell(python -c \"import flask, werkzeug; print\\('flask', flask.__version__, '| werkzeug', werkzeug.__version__\\)\" 2>&1)",
+      "PowerShell(cd \"c:\\\\Users\\\\pablo.quintano\\\\OneDrive - WiseTech Global\\\\Documents\\\\000_Claude Cowork\\\\DEV\\\\engage2win\"; git fetch origin 2>&1 | Out-Null; \"main == origin/main? \" + \\(\\(git rev-parse main\\) -eq \\(git rev-parse origin/main\\)\\); \"commits main..feature: \" + \\(git rev-list --count main..feature/session-platform\\); \"commits feature..main: \" + \\(git rev-list --count feature/session-platform..main\\))",
+      "PowerShell(cd \"c:\\\\Users\\\\pablo.quintano\\\\OneDrive - WiseTech Global\\\\Documents\\\\000_Claude Cowork\\\\DEV\\\\engage2win\"; git fetch origin 2>&1 | Out-Null; \"main == origin/main? \" + \\(\\(git rev-parse main\\) -eq \\(git rev-parse origin/main\\)\\); \"feature ahead of main: \" + \\(git rev-list --count main..feature/phase2-customers-sessions\\); \"main ahead of feature: \" + \\(git rev-list --count feature/phase2-customers-sessions..main\\))",
+      "PowerShell(cd \"c:\\\\Users\\\\pablo.quintano\\\\OneDrive - WiseTech Global\\\\Documents\\\\000_Claude Cowork\\\\DEV\\\\engage2win\"; $env:PYTHONIOENCODING=\"utf-8\"; python app/server.py 2>&1 | Tee-Object \"$env:TEMP\\\\e2w_run.log\")",
+      "PowerShell(Start-Sleep -Seconds 4; \"--- log ---\"; Get-Content \"$env:TEMP\\\\e2w_run.log\" -ErrorAction SilentlyContinue | Select-Object -Last 6; \"--- ping ---\"; try { \"HTTP \" + \\(Invoke-WebRequest \"http://127.0.0.1:5000/login\" -UseBasicParsing -TimeoutSec 5\\).StatusCode } catch { $_.Exception.Message })",
+      "Skill(run)",
+      "Skill(run:*)",
+      "PowerShell(cd \"c:\\\\Users\\\\pablo.quintano\\\\OneDrive - WiseTech Global\\\\Documents\\\\000_Claude Cowork\\\\DEV\\\\engage2win\\\\app\"; python server.py 2>&1 &)",
+      "PowerShell(curl -s http://127.0.0.1:5000/)",
+      "Skill(code-review)",
+      "Skill(code-review:*)"
     ]
-  }
+  },
+  "defaultShell": "powershell"
 }

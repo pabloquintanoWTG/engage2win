@@ -9,6 +9,11 @@
   </div>
   <p class="lead">{{ session.customer.name }}{% if session.scheduled_date %} · {{ session.scheduled_date }}{% endif %}</p>
 
+  <!-- Agenda Button -->
+  <div style="margin-bottom: 24px">
+    <a href="{{ url_for('agenda.agenda_list', session_id=session.id) }}" class="btn">📋 Build agenda</a>
+  </div>
+
   <div class="two-col">
     <div>
       <div class="section-head"><h2>Session details</h2></div>

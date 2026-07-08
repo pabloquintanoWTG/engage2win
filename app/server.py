@@ -36,6 +36,7 @@ from flask_login import LoginManager, login_required, current_user  # noqa: E402
 from models import db, User, Customer, Session, owned  # noqa: E402
 from auth import auth_bp  # noqa: E402
 from workspace import workspace_bp  # noqa: E402
+from agenda import agenda_bp  # noqa: E402
 
 UPLOAD_DIR = APP_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -78,6 +79,7 @@ def _unauthorized():
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(workspace_bp)
+app.register_blueprint(agenda_bp)
 
 with app.app_context():
     db.create_all()

@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+{% block title %}Engage2Win — {{ session.title }} — Agenda{% endblock %}
+{% block body %}
+<div class="page">
+  <a href="{{ url_for('workspace.session_workspace', session_id=session.id) }}" class="btn secondary" style="margin-bottom:18px">← Back to session</a>
+
+  <div class="session-head">
+    <h1 class="title">Agenda for {{ session.title }}</h1>
+    <span class="status-pill {{ session.status }}">{{ session.status }}</span>
+  </div>
+
+  <!-- Time Budget Display -->
+  <div class="card" style="margin-bottom:24px">
+    <div class="section-head"><h2>Time Budget</h2></div>
+    {% set hours = total_minutes // 60 %}
+    {% set mins = total_minutes % 60 %}
+    {% set available_hours = 8 %}
+    {% set is_over = total_minutes > (available_hours * 60) %}
+    <div style="padding: 16px; background: {{ '#fee' if is_over else '#f0f0f0' }}; border-radius: 4px; border-left: 4px solid {{ '#c33' if is_over else '#6a8' }}">
+      <strong>Total: {{ hours }}h {% if mins %}{{ mins }}m{% endif %}</strong> / {{ available_hours }}h 0m (session duration)
+      {% if is_over %}
+      <div style="color: #c33; margin-top: 8px; font-size: 14px">⚠️ Over by {{ (total_minutes - (available_hours * 60)) // 60 }}h {{ (total_minutes - (available_hours * 60)) % 60 }}m</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Add Agenda Item Form -->
+  <div class="card form-card" style="margin-bottom:24px">
+    <div class="section-head"><h2>Add agenda item</h2></div>
+    <form method="post" action="{{ url_for('agenda.agenda_list', session_id=session.id) }}">
+      <div class="row">
+        <div class="field">
+          <label>Type</label>
+          <select name="type" required>
+            <option value="section">Section</option>
+            <option value="break">Break</option>
+            <option value="intro">Intro / Closing</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Name *</label>
+          <input type="text" name="name" required>
+        </div>
+        <div class="field">
+          <label>Category *</label>
+          <select name="category" required>
+            <option value="">— Choose category —</option>
+            {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Duration (minutes) *</label>
+          <input type="number" name="duration_min" value="30" min="1" required>
+        </div>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea name="description" rows="2" class="ta"></textarea>
+      </div>
+      <div class="row">
+        <button type="submit" class="btn">Add item</button>
+        <label style="display: flex; align-items: center; gap: 8px; margin-left: auto">
+          <input type="checkbox" name="enabled" checked>
+          <span>Enabled (counts toward time budget)</span>
+        </label>
+      </div>
+    </form>
+  </div>
+
+  <!-- Agenda Items (Draggable) -->
+  <div class="card">
+    <div class="section-head">
+      <h2>Agenda Items</h2>
+    </div>
+
+    {% if agenda_items %}
+    <div id="agenda-list" class="agenda-list">
+      {% for item in agenda_items %}
+      <div class="agenda-item" draggable="true" data-item-id="{{ item.id }}" data-position="{{ loop.index0 }}">
+        <div class="agenda-item-drag-handle">⋮⋮</div>
+        <div class="agenda-item-content">
+          <div class="agenda-item-header">
+            <div>
+              <div class="agenda-item-title">{{ item.name }}</div>
+              <div class="agenda-item-meta">
+                <span class="category-badge" style="background-color: #ddd; color: #333; padding: 2px 8px; border-radius: 3px; font-size: 12px">{{ item.category }}</span>
+                {% if item.map_type %}
+                <span style="color: #666; font-size: 12px; margin-left: 8px">📊 {{ item.map_type }}</span>
+                {% endif %}
+                {% if not item.enabled %}
+                <span style="color: #999; font-size: 12px; margin-left: 8px">(disabled)</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="agenda-item-time">
+              {% if item.id in timeline %}
+                {{ timeline[item.id].start_time }} – {{ timeline[item.id].end_time }}
+              {% endif %}
+              <div style="font-size: 12px; color: #666">{{ item.duration_min }}m</div>
+            </div>
+          </div>
+          {% if item.description %}
+          <div class="agenda-item-description">{{ item.description }}</div>
+          {% endif %}
+          <!-- Mechanics section (expandable) -->
+          {% if item.get_activities() or item.tips or item.roles or item.materials or item.output %}
+          <div class="agenda-item-mechanics" style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee">
+            <button type="button" class="mechanics-toggle" onclick="toggleMechanics(this)" style="background: none; border: none; color: #0066cc; cursor: pointer; padding: 0; font-size: 14px; font-weight: 500">
+              → Show mechanics & instructions
+            </button>
+            <div class="mechanics-details" style="display: none; margin-top: 12px; padding: 12px; background: #f9f9f9; border-radius: 4px">
+              {% if item.get_activities() %}
+              <div style="margin-bottom: 10px">
+                <strong style="display: block; margin-bottom: 4px; color: #333">Activities:</strong>
+                <ul style="margin: 0; padding-left: 20px; color: #666; font-size: 14px">
+                  {% for activity in item.get_activities() %}<li>{{ activity }}</li>{% endfor %}
+                </ul>
+              </div>
+              {% endif %}
+              {% if item.get_tips() %}
+              <div style="margin-bottom: 10px">
+                <strong style="display: block; margin-bottom: 4px; color: #333">Facilitator Tips:</strong>
+                <ul style="margin: 0; padding-left: 20px; color: #666; font-size: 14px">
+                  {% for tip in item.get_tips() %}<li>{{ tip }}</li>{% endfor %}
+                </ul>
+              </div>
+              {% endif %}
+              {% if item.roles %}
+              <div style="margin-bottom: 10px">
+                <strong style="display: block; margin-bottom: 4px; color: #333">Roles:</strong>
+                <div style="color: #666; font-size: 14px">{{ item.roles }}</div>
+              </div>
+              {% endif %}
+              {% if item.materials %}
+              <div style="margin-bottom: 10px">
+                <strong style="display: block; margin-bottom: 4px; color: #333">Materials:</strong>
+                <div style="color: #666; font-size: 14px">{{ item.materials }}</div>
+              </div>
+              {% endif %}
+              {% if item.output %}
+              <div>
+                <strong style="display: block; margin-bottom: 4px; color: #333">Expected Output:</strong>
+                <div style="color: #666; font-size: 14px">{{ item.output }}</div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        <div class="agenda-item-actions">
+          <a href="{{ url_for('agenda.edit_agenda_item', session_id=session.id, item_id=item.id) }}" class="linkbtn">Edit</a>
+          <form method="post" action="{{ url_for('agenda.delete_agenda_item', session_id=session.id, item_id=item.id) }}" style="display:inline">
+            <button type="submit" class="linkbtn-danger" onclick="return confirm('Delete this agenda item?')">Delete</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <script>
+      // Toggle mechanics visibility
+      function toggleMechanics(button) {
+        const details = button.nextElementSibling;
+        if (details.style.display === 'none') {
+          details.style.display = 'block';
+          button.textContent = '↓ Hide mechanics & instructions';
+        } else {
+          details.style.display = 'none';
+          button.textContent = '→ Show mechanics & instructions';
+        }
+      }
+
+      let draggedElement = null;
+
+      const agendaList = document.getElementById('agenda-list');
+      const items = agendaList.querySelectorAll('.agenda-item');
+
+      items.forEach(item => {
+        item.addEventListener('dragstart', (e) => {
+          draggedElement = item;
+          item.style.opacity = '0.5';
+          e.dataTransfer.effectAllowed = 'move';
+        });
+
+        item.addEventListener('dragend', (e) => {
+          item.style.opacity = '1';
+          draggedElement = null;
+        });
+
+        item.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (item !== draggedElement) {
+            agendaList.insertBefore(draggedElement, item);
+          }
+        });
+      });
+
+      agendaList.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        if (draggedElement) {
+          // Send reorder request to backend
+          const items = Array.from(agendaList.querySelectorAll('.agenda-item')).map((el, idx) => ({
+            id: parseInt(el.dataset.itemId),
+            position: idx
+          }));
+
+          try {
+            const response = await fetch('{{ url_for("agenda.reorder_agenda_items", session_id=session.id) }}', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ items })
+            });
+            if (!response.ok) {
+              alert('Failed to reorder items');
+              location.reload();
+            }
+          } catch (err) {
+            console.error('Reorder error:', err);
+          }
+        }
+      });
+    </script>
+
+    {% else %}
+    <div class="empty">No agenda items yet. <a href="{{ url_for('agenda.agenda_list', session_id=session.id) }}">Add one</a></div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+.agenda-list { list-style: none; padding: 0; margin: 0; }
+
+.agenda-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid #e0e0e0;
+  cursor: grab;
+  transition: background-color 0.2s;
+}
+
+.agenda-item:hover {
+  background-color: #f9f9f9;
+}
+
+.agenda-item-drag-handle {
+  flex-shrink: 0;
+  color: #ccc;
+  font-size: 12px;
+  width: 20px;
+  text-align: center;
+  cursor: grab;
+}
+
+.agenda-item-content {
+  flex: 1;
+}
+
+.agenda-item-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.agenda-item-title {
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.agenda-item-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.agenda-item-description {
+  font-size: 14px;
+  color: #666;
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+.agenda-item-time {
+  flex-shrink: 0;
+  text-align: right;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.agenda-item-actions {
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+}
+</style>
+{% endblock %}

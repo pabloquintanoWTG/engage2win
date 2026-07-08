@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Engage2Win — {{ 'Edit' if action == 'edit' else 'Add' }} Agenda Item{% endblock %}
+{% block body %}
+<div class="page">
+  <a href="{{ url_for('agenda.agenda_list', session_id=session.id) }}" class="btn secondary" style="margin-bottom:18px">← Back to agenda</a>
+
+  <div class="session-head">
+    <h1 class="title">{% if action == 'edit' %}Edit agenda item{% else %}Add agenda item to {{ session.title }}{% endif %}</h1>
+  </div>
+
+  <div class="card form-card" style="max-width: 600px">
+    <form method="post" class="form-card">
+      <!-- Section Library Picker -->
+      <div class="field">
+        <label>Start from a section template (optional)</label>
+        <select id="section-picker" onchange="fillFromSection()">
+          <option value="">— Choose a section to auto-fill —</option>
+          {% for section in default_sections %}
+          <option value="{{ loop.index0 }}">{{ section.name }} ({{ section.minutes }}m, {{ section.category }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Type -->
+      <div class="field">
+        <label>Type</label>
+        <select name="type" required>
+          <option value="section" {{ 'selected' if item and item.type == 'section' }}>Section</option>
+          <option value="break" {{ 'selected' if item and item.type == 'break' }}>Break</option>
+          <option value="intro" {{ 'selected' if item and item.type == 'intro' }}>Intro / Closing</option>
+        </select>
+      </div>
+
+      <!-- Name -->
+      <div class="field">
+        <label>Name *</label>
+        <input type="text" name="name" value="{{ item.name if item else '' }}" required>
+      </div>
+
+      <!-- Category -->
+      <div class="field">
+        <label>Category *</label>
+        <select name="category" required>
+          <option value="">— Choose category —</option>
+          {% for cat in categories %}
+          <option value="{{ cat }}" {{ 'selected' if item and item.category == cat }}>{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Duration -->
+      <div class="field">
+        <label>Duration (minutes) *</label>
+        <input type="number" name="duration_min" value="{{ item.duration_min if item else 15 }}" min="1" required>
+      </div>
+
+      <!-- Description -->
+      <div class="field">
+        <label>Description</label>
+        <textarea name="description" rows="3" class="ta">{{ item.description if item else '' }}</textarea>
+      </div>
+
+      <!-- Activities (comma-separated or one per line) -->
+      <div class="field">
+        <label>Activities (one per line)</label>
+        <textarea name="activities" rows="4" class="ta" placeholder="Activity 1&#10;Activity 2&#10;Activity 3">{% if item %}{% for activity in item.get_activities() %}{{ activity }}
+{% endfor %}{% endif %}</textarea>
+      </div>
+
+      <!-- Tips (one per line) -->
+      <div class="field">
+        <label>Tips (one per line)</label>
+        <textarea name="tips" rows="4" class="ta" placeholder="Tip 1&#10;Tip 2&#10;Tip 3">{% if item %}{% for tip in item.get_tips() %}{{ tip }}
+{% endfor %}{% endif %}</textarea>
+      </div>
+
+      <!-- Roles -->
+      <div class="field">
+        <label>Roles</label>
+        <input type="text" name="roles" value="{{ item.roles if item else '' }}" placeholder="e.g., Facilitator (lead), All participants">
+      </div>
+
+      <!-- Materials -->
+      <div class="field">
+        <label>Materials</label>
+        <input type="text" name="materials" value="{{ item.materials if item else '' }}" placeholder="e.g., Whiteboard, markers, sticky notes">
+      </div>
+
+      <!-- Output -->
+      <div class="field">
+        <label>Expected Output</label>
+        <input type="text" name="output" value="{{ item.output if item else '' }}" placeholder="e.g., Validated keyword map">
+      </div>
+
+      <!-- Map Type (optional, auto-set from category) -->
+      <div class="field">
+        <label>Map Type (optional — auto-set from category)</label>
+        <select name="map_type" id="map-type">
+          <option value="">— None —</option>
+          {% for mt in map_types %}
+          <option value="{{ mt }}" {{ 'selected' if item and item.map_type == mt }}>{{ mt }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Enabled -->
+      <div class="field">
+        <label style="display: flex; align-items: center; gap: 8px">
+          <input type="checkbox" name="enabled" {{ 'checked' if not item or item.enabled }}>
+          <span>Enabled (counts toward time budget)</span>
+        </label>
+      </div>
+
+      <!-- Submit -->
+      <div class="row">
+        <button type="submit" class="btn">{{ 'Update' if action == 'edit' else 'Add' }} agenda item</button>
+        <a href="{{ url_for('agenda.agenda_list', session_id=session.id) }}" class="btn secondary">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  // Auto-set map_type based on category selection
+  const categorySelect = document.querySelector('select[name="category"]');
+  const mapTypeSelect = document.getElementById('map-type');
+  const categoryToMapType = {
+    'Vision': 'vision_keywords',
+    'Problem': 'problem_statements',
+    'Value': 'metrics_root_cause',
+    'Capability': 'capability_map',
+    'Prioritise': 'criteria',
+    'Criteria': 'criteria',
+    'Next steps': 'roadmap'
+  };
+
+  categorySelect?.addEventListener('change', () => {
+    const category = categorySelect.value;
+    const mapType = categoryToMapType[category] || '';
+    if (mapType) {
+      mapTypeSelect.value = mapType;
+    }
+  });
+
+  // Section picker: auto-fill form from selected section
+  function fillFromSection() {
+    const picker = document.getElementById('section-picker');
+    const idx = parseInt(picker.value);
+    if (idx === '' || isNaN(idx)) return;
+
+    const sections = {{ default_sections | tojson }};
+    if (idx < 0 || idx >= sections.length) return;
+    const section = sections[idx];
+
+    document.querySelector('input[name="name"]').value = section.name;
+    document.querySelector('select[name="type"]').value = section.type;
+    document.querySelector('select[name="category"]').value = section.category;
+    document.querySelector('input[name="duration_min"]').value = section.minutes;
+    document.querySelector('textarea[name="description"]').value = section.description;
+    document.querySelector('textarea[name="activities"]').value = section.activities.join('\n');
+    document.querySelector('textarea[name="tips"]').value = section.tips.join('\n');
+    document.querySelector('input[name="roles"]').value = section.roles;
+    document.querySelector('input[name="materials"]').value = section.materials;
+    document.querySelector('input[name="output"]').value = section.output;
+
+    // Auto-set map_type from section
+    if (section.map_type) {
+      mapTypeSelect.value = section.map_type;
+    } else {
+      mapTypeSelect.value = categoryToMapType[section.category] || '';
+    }
+
+    // Reset picker
+    picker.value = '';
+  }
+</script>
+{% endblock %}
