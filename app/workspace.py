@@ -289,11 +289,11 @@ def map_detail(session_id, map_id):
 
     mechanics = MAP_MECHANICS.get(m.map_type, {})
     eval_data = {}
-    try:
-        import json
-        eval_data = json.loads(m.eval_json) if m.eval_json and m.eval_json != "{}" else {}
-    except (json.JSONDecodeError, TypeError):
-        pass
+    if m.eval_json and m.eval_json != "{}":
+        try:
+            eval_data = json.loads(m.eval_json)
+        except (json.JSONDecodeError, TypeError):
+            eval_data = {}  # Invalid JSON stored, show empty results
 
     return render_template("map_detail.html", session=s, map=m,
                           mechanics=mechanics, eval_data=eval_data)
