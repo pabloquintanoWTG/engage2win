@@ -1,17 +1,23 @@
-"""Customers + Sessions + Participants (Phase 2).
+"""Customers + Sessions + Participants (Phase 2) + Maps (Phase 4).
 
 CRUD over the session-planning entities, all behind login and scoped by ownership
 (facilitators see only their own; admins see all). Cross-user access returns 404 so
 we don't leak the existence of other users' data.
 """
+import os
+import sys
+import threading
+import uuid
 from datetime import date
+from pathlib import Path
 
 from flask import (Blueprint, render_template, request, redirect, url_for,
                    flash, abort)
 from flask_login import login_required, current_user
+from werkzeug.utils import secure_filename
 
-from models import (db, Customer, Session, Participant, owned,
-                    LANGUAGES, SESSION_STATUSES)
+from models import (db, Customer, Session, Participant, MapAnalysis, owned,
+                    LANGUAGES, SESSION_STATUSES, MAP_TYPES, MAP_MECHANICS)
 
 workspace_bp = Blueprint("workspace", __name__)
 
@@ -168,3 +174,159 @@ def remove_participant(session_id, pid):
         db.session.commit()
         flash("Participant removed.", "ok")
     return redirect(url_for("workspace.session_workspace", session_id=s.id))
+
+
+# ---------------------------------------------------------------- Phase 4: map analysis
+def _get_map_or_404(map_id, session_id):
+    m = MapAnalysis.query.filter(MapAnalysis.id == map_id,
+                                 MapAnalysis.session_id == session_id).first()
+    if m is None:
+        abort(404)
+    return m
+
+
+@workspace_bp.route("/sessions/<int:session_id>/maps", methods=["GET"])
+@login_required
+def map_list(session_id):
+    s = _get_session_or_404(session_id)
+    maps = MapAnalysis.query.filter(MapAnalysis.session_id == s.id)\
+                             .order_by(MapAnalysis.created_at.desc()).all()
+    return render_template("map_list.html", session=s, maps=maps,
+                          map_types=MAP_TYPES, mechanics=MAP_MECHANICS)
+
+
+@workspace_bp.route("/sessions/<int:session_id>/maps/upload", methods=["POST"])
+@login_required
+def upload_map(session_id):
+    s = _get_session_or_404(session_id)
+
+    map_type = request.form.get("map_type", "").strip()
+    if not map_type or map_type not in MAP_TYPES:
+        flash("Invalid map type.", "error")
+        return redirect(url_for("workspace.map_list", session_id=s.id))
+
+    participant_name = request.form.get("participant_name", "").strip() or None
+    role_context = request.form.get("role_context", "").strip() or None
+
+    if "image" not in request.files:
+        flash("No image uploaded.", "error")
+        return redirect(url_for("workspace.map_list", session_id=s.id))
+
+    file = request.files["image"]
+    if file.filename == "":
+        flash("No file selected.", "error")
+        return redirect(url_for("workspace.map_list", session_id=s.id))
+
+    UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
+    UPLOAD_DIR.mkdir(exist_ok=True)
+    ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+    MAX_BYTES = 20 * 1024 * 1024
+
+    if len(file.read()) > MAX_BYTES:
+        file.seek(0)
+        flash(f"File exceeds {MAX_BYTES // (1024*1024)}MB limit.", "error")
+        return redirect(url_for("workspace.map_list", session_id=s.id))
+    file.seek(0)
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_EXTS:
+        flash(f"Invalid file type. Allowed: {', '.join(ALLOWED_EXTS)}", "error")
+        return redirect(url_for("workspace.map_list", session_id=s.id))
+
+    filename = secure_filename(f"{uuid.uuid4()}_{file.filename}")
+    file_path = UPLOAD_DIR / filename
+    file.save(file_path)
+
+    m = MapAnalysis(
+        session_id=s.id,
+        map_type=map_type,
+        image_path=str(file_path),
+        eval_json="{}",  # pending
+        band="",
+        participant_name=participant_name,
+        role_context=role_context,
+    )
+    db.session.add(m)
+    db.session.commit()
+
+    flash("Map uploaded. Click 'Analyze' to start analysis.", "ok")
+    return redirect(url_for("workspace.map_detail", session_id=s.id, map_id=m.id))
+
+
+@workspace_bp.route("/sessions/<int:session_id>/maps/<int:map_id>", methods=["GET"])
+@login_required
+def map_detail(session_id, map_id):
+    s = _get_session_or_404(session_id)
+    m = _get_map_or_404(map_id, session_id)
+
+    mechanics = MAP_MECHANICS.get(m.map_type, {})
+    eval_data = {}
+    try:
+        import json
+        eval_data = json.loads(m.eval_json) if m.eval_json and m.eval_json != "{}" else {}
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    return render_template("map_detail.html", session=s, map=m,
+                          mechanics=mechanics, eval_data=eval_data)
+
+
+@workspace_bp.route("/sessions/<int:session_id>/maps/<int:map_id>/analyze", methods=["POST"])
+@login_required
+def analyze_map_route(session_id, map_id):
+    s = _get_session_or_404(session_id)
+    m = _get_map_or_404(map_id, session_id)
+
+    import json
+
+    ROOT = Path(__file__).resolve().parent.parent
+    VALIDATE_DIR = ROOT / "validate"
+    sys.path.insert(0, str(VALIDATE_DIR))
+
+    from run import analyze_map as analyze_map_core, resolve_backend
+
+    def run_analysis():
+        try:
+            backend = resolve_backend(None)
+            eval_dict, desc_md = analyze_map_core(
+                image_path=m.image_path,
+                map_type=m.map_type,
+                participant_name=m.participant_name,
+                role_context=m.role_context,
+                session_topic=s.title,
+                language=s.language,
+                backend=backend
+            )
+            m.eval_json = json.dumps(eval_dict, ensure_ascii=False)
+            m.description_md = desc_md or ""
+            overall_score = eval_dict.get("overall", 0)
+            m.band = "green" if overall_score >= 70 else ("amber" if overall_score >= 60 else "red")
+            db.session.commit()
+        except Exception as e:
+            m.eval_json = json.dumps({"error": str(e)})
+            m.band = "error"
+            db.session.commit()
+
+    thread = threading.Thread(target=run_analysis, daemon=True)
+    thread.start()
+
+    flash("Analysis started.", "ok")
+    return redirect(url_for("workspace.map_detail", session_id=s.id, map_id=m.id))
+
+
+@workspace_bp.route("/sessions/<int:session_id>/maps/<int:map_id>/delete", methods=["POST"])
+@login_required
+def delete_map(session_id, map_id):
+    s = _get_session_or_404(session_id)
+    m = _get_map_or_404(map_id, session_id)
+
+    if os.path.exists(m.image_path):
+        try:
+            os.remove(m.image_path)
+        except Exception:
+            pass
+
+    db.session.delete(m)
+    db.session.commit()
+    flash("Map deleted.", "ok")
+    return redirect(url_for("workspace.map_list", session_id=s.id))

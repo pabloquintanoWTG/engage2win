@@ -209,6 +209,8 @@ class MapAnalysis(db.Model):
     agenda_item_id = db.Column(db.Integer, db.ForeignKey("agenda_items.id"), nullable=True, index=True)
     map_type = db.Column(db.String(20), nullable=False)
     image_path = db.Column(db.String(512), nullable=False)
+    participant_name = db.Column(db.String(255), nullable=True)
+    role_context = db.Column(db.String(512), nullable=True)
     eval_json = db.Column(db.Text, nullable=False)  # Full evaluation JSON from Phase 0
     description_md = db.Column(db.Text, nullable=False, default="")
     band = db.Column(db.String(10), nullable=False)  # green|amber|red

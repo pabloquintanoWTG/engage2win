@@ -434,6 +434,84 @@ Tally the ✅ to get your edit-not-redo rate (target &gt; 80%).</p></header>
     REVIEW_PATH.write_text(html, encoding="utf-8")
 
 
+# ---------------------------------------------------------------- Phase 4: analyze_map() for app integration
+def analyze_map(image_path, map_type, participant_name=None, role_context=None,
+                session_topic=None, language="en", model=None, backend="claude_cli"):
+    """
+    Analyze a single map image (Phase 4 integration with Flask app).
+
+    Args:
+        image_path: Path to map image (str or Path)
+        map_type: Type of map (vision_keywords, problem_statements, etc.)
+        participant_name: Optional participant name
+        role_context: Optional role/context string
+        session_topic: Session title or topic
+        language: Output language (en, es, ca)
+        model: Model name (defaults to DEFAULT_MODEL)
+        backend: "claude_cli", "live", or "dry_run"
+
+    Returns:
+        (eval_dict, description_md) — evaluation JSON and markdown description
+
+    Raises:
+        ValueError: if image not found or invalid
+        RuntimeError: if model call fails
+        ValidationError: if output doesn't match schema
+    """
+    image_path = Path(image_path)
+    if not image_path.exists():
+        raise ValueError(f"Image not found: {image_path}")
+
+    model = model or DEFAULT_MODEL
+
+    schema = json.loads(SCHEMA_PATH.read_text())
+    prompt_template = PROMPT_PATH.read_text()
+    describe_template = DESCRIBE_PROMPT_PATH.read_text() if DESCRIBE_PROMPT_PATH.exists() else None
+
+    ctx = {
+        "name": participant_name or "—",
+        "role": role_context or "—",
+        "area": map_type or "—",
+        "topic": session_topic or "—",
+        "language": language,
+    }
+
+    eval_dict = None
+    description_md = None
+
+    try:
+        if backend == "dry_run":
+            raw_eval = stub_result(ctx)
+            eval_dict = raw_eval
+            description_md = stub_description(ctx) if describe_template else None
+        elif backend == "claude_cli":
+            raw_eval = call_model_cli(model, fill_prompt(prompt_template, ctx), image_path)
+            eval_dict = extract_json(raw_eval)
+            eval_dict = normalise(eval_dict)
+            js_validate(instance=eval_dict, schema=schema)
+
+            if describe_template:
+                raw_desc = describe_map_cli(model, describe_template, ctx, image_path)
+                description_md = raw_desc
+        else:  # live (Anthropic SDK)
+            b64 = base64.b64encode(image_path.read_bytes()).decode()
+            raw_eval = call_model(model, fill_prompt(prompt_template, ctx),
+                                  b64, MEDIA_TYPES[image_path.suffix.lower()])
+            eval_dict = extract_json(raw_eval)
+            eval_dict = normalise(eval_dict)
+            js_validate(instance=eval_dict, schema=schema)
+
+            if describe_template:
+                raw_desc = describe_map(model, describe_template, ctx,
+                                       b64, MEDIA_TYPES[image_path.suffix.lower()])
+                description_md = raw_desc
+
+    except (ValidationError, RuntimeError, ValueError) as e:
+        raise RuntimeError(f"Analysis failed: {e}")
+
+    return eval_dict, description_md
+
+
 # ---------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser()
