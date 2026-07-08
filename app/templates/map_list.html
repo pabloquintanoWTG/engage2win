@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Map Analysis — {{ session.title }}{% endblock %}
+{% block body %}
+<div class="page">
+  <a href="{{ url_for('workspace.session_workspace', session_id=session.id) }}" class="btn secondary" style="margin-bottom:18px">← {{ session.title }}</a>
+
+  <div class="session-head">
+    <h1 class="title">Map Analysis</h1>
+  </div>
+  <p class="lead">Upload thinking maps and get AI-powered evaluation across 5 dimensions.</p>
+
+  <!-- Upload Form -->
+  <div class="card form-card" style="margin-bottom: 24px">
+    <h2 style="margin-top: 0">Upload a new map</h2>
+    <form method="post" action="{{ url_for('workspace.upload_map', session_id=session.id) }}" enctype="multipart/form-data">
+      <div class="row">
+        <div class="field" style="flex: 1">
+          <label>Map type *</label>
+          <select name="map_type" required>
+            <option value="">— Select map type —</option>
+            {% for mt in map_types %}
+            <option value="{{ mt }}">{{ mechanics.get(mt, {}).get('name', mt) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field" style="flex: 1">
+          <label>Participant name (optional)</label>
+          <input type="text" name="participant_name" placeholder="e.g., Sarah Chen">
+        </div>
+      </div>
+      <div class="field">
+        <label>Role / context (optional)</label>
+        <input type="text" name="role_context" placeholder="e.g., Head of Supply Chain">
+      </div>
+      <div class="field">
+        <label>Map image * (JPG, PNG, WebP, max 20MB)</label>
+        <input type="file" name="image" accept=".jpg,.jpeg,.png,.webp" required>
+      </div>
+      <button type="submit" class="btn">Upload and analyze</button>
+    </form>
+  </div>
+
+  <!-- Maps List -->
+  {% if maps %}
+  <div class="section-head"><h2>Analyzed maps ({{ maps|length }})</h2></div>
+  <div class="list">
+    {% for m in maps %}
+    <div class="list-row">
+      <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0">
+        <div style="flex: 1; min-width: 0">
+          <a href="{{ url_for('workspace.map_detail', session_id=session.id, map_id=m.id) }}" class="list-title">
+            {{ m.map_type | replace('_', ' ') | title }}
+          </a>
+          <div class="list-meta">
+            {% if m.participant_name %}{{ m.participant_name }} · {% endif %}
+            {{ m.created_at.strftime('%Y-%m-%d %H:%M') }}
+          </div>
+        </div>
+        {% if m.band == 'error' %}
+        <span class="rag-badge error">ERROR</span>
+        {% elif m.band %}
+        <span class="rag-badge {{ m.band }}">{{ m.band | upper }}</span>
+        {% else %}
+        <span class="rag-badge pending">PENDING</span>
+        {% endif %}
+      </div>
+      <div style="display: flex; gap: 8px; margin-left: auto">
+        <a href="{{ url_for('workspace.map_detail', session_id=session.id, map_id=m.id) }}" class="linkbtn">View</a>
+        {% if not m.band or m.band == 'error' %}
+        <form method="post" action="{{ url_for('workspace.analyze_map_route', session_id=session.id, map_id=m.id) }}" style="display: inline">
+          <button type="submit" class="linkbtn">{% if m.band == 'error' %}Retry{% else %}Analyze{% endif %}</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{{ url_for('workspace.delete_map', session_id=session.id, map_id=m.id) }}" style="display: inline" onsubmit="return confirm('Delete this map?')">
+          <button type="submit" class="linkbtn-danger">Delete</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">No maps uploaded yet. Upload one above to get started.</div>
+  {% endif %}
+</div>
+
+<style>
+.rag-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: white;
+  flex-shrink: 0;
+}
+.rag-badge.green { background: #1f9d4d; }
+.rag-badge.amber { background: #e8820e; }
+.rag-badge.red { background: #d64545; }
+.rag-badge.pending { background: #6b7280; }
+.rag-badge.error { background: #f97316; }
+</style>
+{% endblock %}

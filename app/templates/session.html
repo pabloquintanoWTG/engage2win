@@ -9,9 +9,10 @@
   </div>
   <p class="lead">{{ session.customer.name }}{% if session.scheduled_date %} · {{ session.scheduled_date }}{% endif %}</p>
 
-  <!-- Agenda Button -->
-  <div style="margin-bottom: 24px">
+  <!-- Agenda & Maps Buttons -->
+  <div style="margin-bottom: 24px; display: flex; gap: 12px">
     <a href="{{ url_for('agenda.agenda_list', session_id=session.id) }}" class="btn">📋 Build agenda</a>
+    <a href="{{ url_for('workspace.map_list', session_id=session.id) }}" class="btn">📊 Map analysis</a>
   </div>
 
   <div class="two-col">

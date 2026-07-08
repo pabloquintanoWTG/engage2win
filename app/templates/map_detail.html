@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Map Analysis — {{ session.title }}{% endblock %}
+{% block body %}
+<div class="page">
+  <a href="{{ url_for('workspace.map_list', session_id=session.id) }}" class="btn secondary" style="margin-bottom:18px">← Back to maps</a>
+
+  <div class="session-head">
+    <h1 class="title">{{ map.map_type | replace('_', ' ') | title }}</h1>
+  </div>
+  <p class="lead">
+    {% if map.participant_name %}{{ map.participant_name }} · {% endif %}
+    {{ map.created_at.strftime('%Y-%m-%d %H:%M') }}
+  </p>
+
+  <div class="two-col" style="grid-template-columns: 1fr 2fr; gap: 24px">
+    <!-- Left: Image + Mechanics -->
+    <div>
+      <!-- Map Image -->
+      {% if map.image_path %}
+      <div class="card" style="margin-bottom: 16px">
+        <img src="{{ map.image_path }}" alt="Map" style="width: 100%; height: auto; border-radius: 8px; display: block">
+      </div>
+      {% endif %}
+
+      <!-- Mechanics -->
+      {% if mechanics %}
+      <div class="card">
+        <h3 style="margin-top: 0">{{ mechanics.name }}</h3>
+
+        <div style="margin-bottom: 12px">
+          <h4 style="margin: 0 0 4px; color: #6366f1">Purpose</h4>
+          <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #666">{{ mechanics.purpose }}</p>
+        </div>
+
+        <div style="margin-bottom: 12px">
+          <h4 style="margin: 0 0 4px; color: #6366f1">Steps</h4>
+          <ol style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.5; color: #666">
+            {% for step in mechanics.mechanics %}
+            <li>{{ step }}</li>
+            {% endfor %}
+          </ol>
+        </div>
+
+        <div style="margin-bottom: 12px">
+          <h4 style="margin: 0 0 4px; color: #6366f1">Expected output</h4>
+          <p style="margin: 0; font-size: 13px; line-height: 1.5; color: #666">{{ mechanics.expected_output }}</p>
+        </div>
+
+        <div>
+          <h4 style="margin: 0 0 4px; color: #6366f1">Evaluation signals</h4>
+          <ul style="margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.5; color: #666">
+            {% for signal in mechanics.evaluation_signals %}
+            <li>{{ signal }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Right: Analysis Results -->
+    <div>
+      {% if eval_data and eval_data.get('error') %}
+      <!-- Error State -->
+      <div class="card" style="background: #fef2f2; border: 1px solid #fecaca; margin-bottom: 16px">
+        <h3 style="margin-top: 0; color: #dc2626">Analysis failed</h3>
+        <p style="margin: 0; color: #991b1b; font-size: 14px">{{ eval_data.error }}</p>
+      </div>
+      <form method="post" action="{{ url_for('workspace.analyze_map_route', session_id=session.id, map_id=map.id) }}">
+        <button type="submit" class="btn" style="width: 100%">Retry analysis</button>
+      </form>
+
+      {% elif eval_data and eval_data.get('overall') is not none %}
+      <!-- Results -->
+      <div class="card" style="margin-bottom: 16px">
+        <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 12px">
+          {% set band = 'green' if eval_data.overall >= 70 else ('amber' if eval_data.overall >= 60 else 'red') %}
+          <div style="width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: {% if band == 'green' %}#1f9d4d{% elif band == 'amber' %}#e8820e{% else %}#d64545{% endif %}; color: white; font-size: 28px; font-weight: 700; flex-shrink: 0">
+            {{ eval_data.overall }}
+          </div>
+          <div>
+            <h3 style="margin: 0 0 4px">{{ eval_data.verdict.title if eval_data.verdict else 'Evaluation' }}</h3>
+            <p style="margin: 0; color: #666; font-size: 14px">{{ eval_data.verdict.text if eval_data.verdict else '' }}</p>
+            <div style="margin-top: 6px; font-size: 12px; color: #888">
+              Language: {{ eval_data.language or '—' }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dimensions -->
+      {% if eval_data.dimensions %}
+      <div class="card" style="margin-bottom: 16px">
+        <h3 style="margin-top: 0">Dimensions</h3>
+        {% for dim in eval_data.dimensions %}
+        <div style="display: grid; grid-template-columns: 100px 1fr 60px; align-items: center; gap: 12px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #eee">
+          <span style="font-weight: 500; font-size: 13px">{{ dim.key | title }}</span>
+          <p style="margin: 0; font-size: 13px; color: #666">{{ dim.comment }}</p>
+          <span style="text-align: center; padding: 4px 10px; border-radius: 4px; font-weight: 700; font-size: 11px; color: white; background: {% if dim.score >= 70 %}#1f9d4d{% elif dim.score >= 60 %}#e8820e{% else %}#d64545{% endif %}">
+            {{ dim.score }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <!-- Strengths, Recommendations, Questions -->
+      <div class="card" style="margin-bottom: 16px">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+          <div>
+            <h4 style="margin: 0 0 8px; color: #6366f1; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px">Strengths</h4>
+            <ul style="margin: 0; padding-left: 16px; font-size: 13px; color: #333">
+              {% for s in eval_data.strengths or [] %}
+              <li style="margin-bottom: 4px">{{ s }}</li>
+              {% else %}
+              <li style="color: #aaa">—</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div>
+            <h4 style="margin: 0 0 8px; color: #6366f1; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px">Recommendations</h4>
+            <ul style="margin: 0; padding-left: 16px; font-size: 13px; color: #333">
+              {% for r in eval_data.recommendations or [] %}
+              <li style="margin-bottom: 4px">{{ r }}</li>
+              {% else %}
+              <li style="color: #aaa">—</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Questions -->
+      {% if eval_data.questions %}
+      <div class="card" style="margin-bottom: 16px">
+        <h4 style="margin: 0 0 8px; color: #6366f1; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px">Questions to deepen thinking</h4>
+        <ul style="margin: 0; padding-left: 16px; font-size: 13px; color: #333">
+          {% for q in eval_data.questions or [] %}
+          <li style="margin-bottom: 8px">{{ q }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <!-- Description -->
+      {% if map.description_md %}
+      <div class="card" style="margin-bottom: 16px; background: #f8f9ff; border: 1px solid #e0e2f0">
+        <h4 style="margin: 0 0 8px; color: #4f46e5">Full description</h4>
+        <pre style="margin: 0; font-size: 12px; line-height: 1.5; white-space: pre-wrap; font-family: inherit; overflow: auto; max-height: 300px; color: #333">{{ map.description_md }}</pre>
+      </div>
+      {% endif %}
+
+      <!-- Actions -->
+      <div style="display: flex; gap: 8px">
+        <form method="post" action="{{ url_for('workspace.analyze_map_route', session_id=session.id, map_id=map.id) }}" style="flex: 1">
+          <button type="submit" class="btn" style="width: 100%">Re-analyze</button>
+        </form>
+        <form method="post" action="{{ url_for('workspace.delete_map', session_id=session.id, map_id=map.id) }}" style="flex: 1" onsubmit="return confirm('Delete this map?')">
+          <button type="submit" class="btn secondary" style="width: 100%">Delete</button>
+        </form>
+      </div>
+
+      {% else %}
+      <!-- Pending State -->
+      <div class="card" style="text-align: center; padding: 40px 20px">
+        <p style="margin: 0 0 16px; color: #666">Analysis in progress...</p>
+        <button onclick="location.reload()" class="btn secondary">Refresh</button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
