@@ -104,6 +104,14 @@ def edit_customer(customer_id):
 @login_required
 def delete_customer(customer_id):
     c = _get_customer_or_404(customer_id)
+    # Delete all map image files from all sessions under this customer
+    for session in c.sessions:
+        for m in session.map_analyses:
+            if os.path.exists(m.image_path):
+                try:
+                    os.remove(m.image_path)
+                except Exception:
+                    pass
     db.session.delete(c)  # CASCADE deletes sessions, participants, maps, agenda items
     db.session.commit()
     flash("Customer deleted (including all sessions and maps).", "ok")
@@ -167,6 +175,13 @@ def edit_session(session_id):
 def delete_session(session_id):
     s = _get_session_or_404(session_id)
     cid = s.customer_id
+    # Delete all map image files from this session
+    for m in s.map_analyses:
+        if os.path.exists(m.image_path):
+            try:
+                os.remove(m.image_path)
+            except Exception:
+                pass
     db.session.delete(s)  # CASCADE deletes participants, maps, agenda items
     db.session.commit()
     flash("Session deleted (including all participants, maps, and agenda items).", "ok")
