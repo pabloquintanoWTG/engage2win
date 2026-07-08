@@ -6,6 +6,7 @@
     <h1 class="title">Sign in</h1>
     <p class="lead">Access your engage2win sessions and map analysis.</p>
     <form method="post" action="{{ url_for('auth.login') }}{% if request.args.get('next') %}?next={{ request.args.get('next') }}{% endif %}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="field">
         <label>Email</label>
         <input type="email" name="email" value="{{ email or '' }}" required autofocus>

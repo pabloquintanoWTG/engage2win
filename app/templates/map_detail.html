@@ -153,9 +153,11 @@
       <!-- Actions -->
       <div style="display: flex; gap: 8px">
         <form method="post" action="{{ url_for('workspace.analyze_map_route', session_id=session.id, map_id=map.id) }}" style="flex: 1">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <button type="submit" class="btn" style="width: 100%">Re-analyze</button>
         </form>
         <form method="post" action="{{ url_for('workspace.delete_map', session_id=session.id, map_id=map.id) }}" style="flex: 1" onsubmit="return confirm('Delete this map?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <button type="submit" class="btn secondary" style="width: 100%">Delete</button>
         </form>
       </div>

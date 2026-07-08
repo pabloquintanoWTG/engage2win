@@ -18,6 +18,9 @@ import pytest  # noqa: E402
 import server  # noqa: E402  (configures Flask app + db against the temp DB)
 from models import db  # noqa: E402
 
+# Disable CSRF protection for tests (tests don't submit real HTML forms with tokens)
+server.app.config["WTF_CSRF_ENABLED"] = False
+
 
 @pytest.fixture(autouse=True)
 def _fresh_db():

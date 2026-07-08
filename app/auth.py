@@ -23,6 +23,8 @@ def _safe_next(target):
     """Return `target` only if it's a local path (prevents open redirects)."""
     if not target:
         return None
+    # Normalize backslashes to forward slashes (browser will do this anyway)
+    target = target.replace("\\", "/")
     parsed = urlparse(target)
     if parsed.scheme or parsed.netloc:      # absolute/external URL — reject
         return None

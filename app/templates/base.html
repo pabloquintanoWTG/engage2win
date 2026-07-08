@@ -21,6 +21,7 @@
       <span class="who">{{ current_user.name or current_user.email }}
         <em>{{ current_user.role }}</em></span>
       <form method="post" action="{{ url_for('auth.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <button type="submit" class="linkbtn">Sign out</button>
       </form>
     </div>

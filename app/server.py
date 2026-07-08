@@ -22,6 +22,9 @@ from pathlib import Path
 from flask import (Flask, render_template, request, jsonify, send_from_directory,
                    abort, url_for, redirect)
 from werkzeug.utils import secure_filename
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # --- make the proven Phase 0 core importable -------------------------------
 APP_DIR = Path(__file__).resolve().parent
@@ -50,19 +53,29 @@ app.config["MAX_CONTENT_LENGTH"] = MAX_BYTES
 run.load_env()
 
 # --- auth + database -------------------------------------------------------
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or "dev-insecure-change-me"
-if app.config["SECRET_KEY"] == "dev-insecure-change-me":
-    print("WARNING: SECRET_KEY not set — using an insecure dev key. Set SECRET_KEY in .env.local.")
+secret_key = os.environ.get("SECRET_KEY")
+if not secret_key:
+    raise RuntimeError("SECRET_KEY environment variable not set. Set it in .env.local before running.")
+app.config["SECRET_KEY"] = secret_key
+
 app.config["SQLALCHEMY_DATABASE_URI"] = (
     os.environ.get("DATABASE_URL") or f"sqlite:///{APP_DIR / 'engage2win.db'}")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+# Session cookie security hardening
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SECURE"] = False  # False for localhost HTTP; set True for production HTTPS
+
 db.init_app(app)
+csrf = CSRFProtect(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "auth.login"
 
+limiter = Limiter(app=app, key_func=get_remote_address)
+
 # API routes answer XHR with JSON; pages redirect to the login screen.
-_API_PREFIXES = ("/analyze", "/status")
+_API_PREFIXES = ("/analyze", "/status", "/api/")
 
 
 @login_manager.user_loader
@@ -80,6 +93,10 @@ def _unauthorized():
 app.register_blueprint(auth_bp)
 app.register_blueprint(workspace_bp)
 app.register_blueprint(agenda_bp)
+
+# Rate limiting on auth endpoints
+limiter.limit("5 per minute; 20 per hour")(app.view_functions["auth.login"])
+limiter.limit("5 per minute; 20 per hour")(app.view_functions["auth.register"])
 
 with app.app_context():
     db.create_all()
@@ -257,4 +274,5 @@ def uploaded_file(filename):
 
 if __name__ == "__main__":
     print("Engage2Win MVP  ->  http://127.0.0.1:5000")
-    app.run(debug=True, port=5000)
+    debug_mode = os.environ.get("FLASK_DEBUG") == "1"
+    app.run(debug=debug_mode, port=5000)

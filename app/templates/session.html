@@ -19,6 +19,7 @@
     <div>
       <div class="section-head"><h2>Session details</h2></div>
       <form method="post" action="{{ url_for('workspace.edit_session', session_id=session.id) }}" class="card form-card">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="field"><label>Title</label><input type="text" name="title" value="{{ session.title }}" required></div>
         <div class="field"><label>Objectives</label>
           <textarea name="objectives" rows="4" class="ta">{{ session.objectives }}</textarea></div>
@@ -49,6 +50,7 @@
     <div>
       <div class="section-head"><h2>Participants</h2></div>
       <form method="post" action="{{ url_for('workspace.add_participant', session_id=session.id) }}" class="card form-card" style="margin-bottom:16px">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="row">
           <div class="field"><label>Name</label><input type="text" name="name" required></div>
           <div class="field"><label>Role / dept</label><input type="text" name="role_dept"></div>
@@ -83,6 +85,11 @@ function toggleDeleteConfirm(btn, type) {
     const delForm = document.createElement('form');
     delForm.method = 'POST';
     delForm.action = action;
+    const csrf = document.createElement('input');
+    csrf.type = 'hidden';
+    csrf.name = 'csrf_token';
+    csrf.value = '{{ csrf_token() }}';
+    delForm.appendChild(csrf);
     document.body.appendChild(delForm);
     delForm.submit();
   } else {

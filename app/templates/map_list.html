@@ -13,6 +13,7 @@
   <div class="card form-card" style="margin-bottom: 24px">
     <h2 style="margin-top: 0">Upload a new map</h2>
     <form method="post" action="{{ url_for('workspace.upload_map', session_id=session.id) }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="row">
         <div class="field" style="flex: 1">
           <label>Map type *</label>

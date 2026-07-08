@@ -7,6 +7,7 @@
   <p class="lead">Each customer holds the engage2win sessions you run for them.</p>
 
   <form method="post" action="{{ url_for('workspace.customers') }}" class="card form-card" style="margin-bottom:22px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <div class="row">
       <div class="field">
         <label>Customer name</label>

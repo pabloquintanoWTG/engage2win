@@ -51,6 +51,7 @@
     <div>
       <div class="section-head"><h2>Details</h2></div>
       <form method="post" action="{{ url_for('workspace.edit_customer', customer_id=customer.id) }}" class="card form-card">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="field"><label>Name</label><input type="text" name="name" value="{{ customer.name }}" required></div>
         <div class="field"><label>Industry</label><input type="text" name="industry" value="{{ customer.industry }}"></div>
         <div class="field"><label>Notes</label><input type="text" name="notes" value="{{ customer.notes }}"></div>
@@ -73,6 +74,11 @@ function toggleDeleteConfirm(btn, type) {
     const delForm = document.createElement('form');
     delForm.method = 'POST';
     delForm.action = action;
+    const csrf = document.createElement('input');
+    csrf.type = 'hidden';
+    csrf.name = 'csrf_token';
+    csrf.value = '{{ csrf_token() }}';
+    delForm.appendChild(csrf);
     document.body.appendChild(delForm);
     delForm.submit();
   } else {
