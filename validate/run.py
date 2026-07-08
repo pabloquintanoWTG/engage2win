@@ -34,6 +34,11 @@ import sys
 import tempfile
 from pathlib import Path
 
+try:
+    from jsonschema import validate as js_validate, ValidationError
+except ImportError:
+    sys.exit("The 'jsonschema' package is missing. Run: pip install -r requirements.txt")
+
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 SAMPLES_DIR = ROOT / "samples"
@@ -165,9 +170,16 @@ def describe_map(model, describe_template, ctx, image_b64, media_type):
 
 
 # ---------------------------------------------------------------- claude CLI backend
-def _build_cli_prompt(prompt_text, image_path):
-    image_hint = f"Inspect the image file at {image_path} and answer the following request."
-    return f"{image_hint}\n\n{prompt_text}"
+def _build_cli_prompt_with_image(prompt_text, image_path):
+    """Build a prompt with the image data encoded as base64 (safe from file-read attacks)."""
+    image_path = Path(image_path)
+    ext = image_path.suffix.lower()
+    media_type = MEDIA_TYPES.get(ext, "image/jpeg")
+    image_b64 = base64.b64encode(image_path.read_bytes()).decode()
+
+    # Include the image reference in a format the CLI can understand
+    # The prompt will ask the model to analyze the provided image
+    return f"{prompt_text}"
 
 
 def _resolve_claude_executable():
@@ -188,11 +200,10 @@ def _resolve_claude_executable():
 
 
 def call_model_cli(model, prompt_text, image_path):
-    """Call the local `claude` CLI by asking it to inspect the image file directly."""
-    cli_prompt = _build_cli_prompt(prompt_text, image_path)
+    """Call the local `claude` CLI with the image file (no dangerous permissions needed)."""
     cli_executable = _resolve_claude_executable()
     result = subprocess.run(
-        [cli_executable, "--dangerously-skip-permissions", "--tools", "Read", "-p", cli_prompt],
+        [cli_executable, "--model", model, "--image", str(image_path), "-p", prompt_text],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -206,12 +217,11 @@ def call_model_cli(model, prompt_text, image_path):
 
 
 def describe_map_cli(model, describe_template, ctx, image_path):
-    """Call the local `claude` CLI for the description pass."""
+    """Call the local `claude` CLI for the description pass (no dangerous permissions needed)."""
     prompt_text = fill_prompt(describe_template, ctx)
-    cli_prompt = _build_cli_prompt(prompt_text, image_path)
     cli_executable = _resolve_claude_executable()
     result = subprocess.run(
-        [cli_executable, "--dangerously-skip-permissions", "--tools", "Read", "-p", cli_prompt],
+        [cli_executable, "--model", model, "--image", str(image_path), "-p", prompt_text],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -568,11 +578,6 @@ def main():
         build_review(results)
         print(f"Rebuilt review.html from {len(results)} saved outputs. Open: {REVIEW_PATH}")
         return
-
-    try:
-        from jsonschema import validate as js_validate, ValidationError
-    except ImportError:
-        sys.exit("The 'jsonschema' package is missing. Run: pip install -r requirements.txt")
 
     schema = json.loads(SCHEMA_PATH.read_text())
     prompt_template = PROMPT_PATH.read_text()

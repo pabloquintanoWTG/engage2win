@@ -13,7 +13,7 @@ from datetime import date
 from pathlib import Path
 
 from flask import (Blueprint, render_template, request, redirect, url_for,
-                   flash, abort)
+                   flash, abort, current_app, send_from_directory)
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 
@@ -107,7 +107,7 @@ def delete_customer(customer_id):
     db.session.delete(c)  # CASCADE deletes sessions, participants, maps, agenda items
     db.session.commit()
     flash("Customer deleted (including all sessions and maps).", "ok")
-    return redirect(url_for("customers"))
+    return redirect(url_for("workspace.customers"))
 
 
 # ---------------------------------------------------------------- sessions
@@ -311,33 +311,58 @@ def analyze_map_route(session_id, map_id):
         flash("Analysis backend not available.", "error")
         return redirect(url_for("workspace.map_detail", session_id=s.id, map_id=m.id))
 
+    # Capture plain values before thread spawn (ORM instances are thread-unsafe)
+    app_obj = current_app._get_current_object()
+    map_id_capture = m.id
+    image_path = m.image_path
+    map_type = m.map_type
+    participant_name = m.participant_name
+    role_context = m.role_context
+    session_title = s.title
+    session_language = s.language
+
     def run_analysis():
-        try:
-            backend = resolve_backend(None)
-            eval_dict, desc_md = analyze_map_core(
-                image_path=m.image_path,
-                map_type=m.map_type,
-                participant_name=m.participant_name,
-                role_context=m.role_context,
-                session_topic=s.title,
-                language=s.language,
-                backend=backend
-            )
-            m.eval_json = json.dumps(eval_dict, ensure_ascii=False)
-            m.description_md = desc_md or ""
-            overall_score = eval_dict.get("overall", 0)
-            m.band = "green" if overall_score >= 70 else ("amber" if overall_score >= 60 else "red")
-            db.session.commit()
-        except Exception as e:
-            m.eval_json = json.dumps({"error": str(e)})
-            m.band = "error"
-            db.session.commit()
+        with app_obj.app_context():
+            try:
+                backend = resolve_backend(None)
+                eval_dict, desc_md = analyze_map_core(
+                    image_path=image_path,
+                    map_type=map_type,
+                    participant_name=participant_name,
+                    role_context=role_context,
+                    session_topic=session_title,
+                    language=session_language,
+                    backend=backend
+                )
+                m_row = db.session.get(MapAnalysis, map_id_capture)
+                if m_row:
+                    m_row.eval_json = json.dumps(eval_dict, ensure_ascii=False)
+                    m_row.description_md = desc_md or ""
+                    overall_score = eval_dict.get("overall", 0)
+                    m_row.band = "green" if overall_score >= 70 else ("amber" if overall_score >= 60 else "red")
+                    db.session.commit()
+            except Exception as e:
+                m_row = db.session.get(MapAnalysis, map_id_capture)
+                if m_row:
+                    m_row.eval_json = json.dumps({"error": str(e)})
+                    m_row.band = "error"
+                    db.session.commit()
 
     thread = threading.Thread(target=run_analysis, daemon=True)
     thread.start()
 
     flash("Analysis started.", "ok")
     return redirect(url_for("workspace.map_detail", session_id=s.id, map_id=m.id))
+
+
+@workspace_bp.route("/sessions/<int:session_id>/maps/<int:map_id>/image")
+@login_required
+def map_image(session_id, map_id):
+    s = _get_session_or_404(session_id)
+    m = _get_map_or_404(map_id, session_id)
+    if not os.path.exists(m.image_path):
+        abort(404)
+    return send_from_directory(os.path.dirname(m.image_path), os.path.basename(m.image_path))
 
 
 @workspace_bp.route("/sessions/<int:session_id>/maps/<int:map_id>/delete", methods=["POST"])

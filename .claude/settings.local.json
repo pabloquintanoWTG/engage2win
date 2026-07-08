@@ -24,7 +24,12 @@
       "Skill(code-review)",
       "Skill(code-review:*)",
       "PowerShell(python \"C:\\\\Users\\\\pablo.quintano\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-pablo-quintano-OneDrive---WiseTech-Global-Documents-000-Claude-Cowork-DEV-engage2win\\\\ba79baee-d4e0-4615-a98a-0c88bc662d62\\\\scratchpad\\\\test_phase4.py\")",
-      "PowerShell(python \"C:\\\\Users\\\\pablo.quintano\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-pablo-quintano-OneDrive---WiseTech-Global-Documents-000-Claude-Cowork-DEV-engage2win\\\\ba79baee-d4e0-4615-a98a-0c88bc662d62\\\\scratchpad\\\\test_phase4.py\" 2>&1)"
+      "PowerShell(python \"C:\\\\Users\\\\pablo.quintano\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-pablo-quintano-OneDrive---WiseTech-Global-Documents-000-Claude-Cowork-DEV-engage2win\\\\ba79baee-d4e0-4615-a98a-0c88bc662d62\\\\scratchpad\\\\test_phase4.py\" 2>&1)",
+      "PowerShell(python \"C:\\\\Users\\\\pablo.quintano\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-pablo-quintano-OneDrive---WiseTech-Global-Documents-000-Claude-Cowork-DEV-engage2win\\\\ba79baee-d4e0-4615-a98a-0c88bc662d62\\\\scratchpad\\\\debug_app.py\")",
+      "PowerShell(python \"C:\\\\Users\\\\pablo.quintano\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-pablo-quintano-OneDrive---WiseTech-Global-Documents-000-Claude-Cowork-DEV-engage2win\\\\ba79baee-d4e0-4615-a98a-0c88bc662d62\\\\scratchpad\\\\check_users.py\")",
+      "PowerShell(\"---\")",
+      "PowerShell(python \"C:\\\\Users\\\\pablo.quintano\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-pablo-quintano-OneDrive---WiseTech-Global-Documents-000-Claude-Cowork-DEV-engage2win\\\\ba79baee-d4e0-4615-a98a-0c88bc662d62\\\\scratchpad\\\\test_gap_probe.py\")",
+      "PowerShell(python \"C:\\\\Users\\\\pablo.quintano\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-pablo-quintano-OneDrive---WiseTech-Global-Documents-000-Claude-Cowork-DEV-engage2win\\\\ba79baee-d4e0-4615-a98a-0c88bc662d62\\\\scratchpad\\\\test_gap_probe2.py\")"
     ]
   },
   "defaultShell": "powershell"
