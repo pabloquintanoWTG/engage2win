@@ -79,7 +79,7 @@
 <script>
 function toggleDeleteConfirm(btn, type) {
   if (btn.classList.contains('confirming')) {
-    const action = type === 'session' ? '{{ url_for("workspace.delete_session", session_id=session.id) }}' : '{{ url_for("workspace.delete_customer", customer_id=customer.id) }}';
+    const action = '{{ url_for("workspace.delete_session", session_id=session.id) }}';
     const delForm = document.createElement('form');
     delForm.method = 'POST';
     delForm.action = action;
