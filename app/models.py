@@ -132,6 +132,8 @@ class Session(db.Model):
                                    cascade="all, delete-orphan", order_by="Participant.id")
     agenda_items = db.relationship("AgendaItem", back_populates="session",
                                    cascade="all, delete-orphan", order_by="AgendaItem.position")
+    map_analyses = db.relationship("MapAnalysis", back_populates="session",
+                                   cascade="all, delete-orphan", order_by="MapAnalysis.created_at.desc()")
 
     def __repr__(self):
         return f"<Session {self.title} ({self.status})>"
@@ -198,6 +200,27 @@ class AgendaItem(db.Model):
         return f"<AgendaItem {self.name} (pos {self.position})>"
 
 
+# ---------------------------------------------------------------- Phase 4 models
+class MapAnalysis(db.Model):
+    __tablename__ = "map_analyses"
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey("sessions.id"), nullable=False, index=True)
+    agenda_item_id = db.Column(db.Integer, db.ForeignKey("agenda_items.id"), nullable=True, index=True)
+    map_type = db.Column(db.String(20), nullable=False)
+    image_path = db.Column(db.String(512), nullable=False)
+    eval_json = db.Column(db.Text, nullable=False)  # Full evaluation JSON from Phase 0
+    description_md = db.Column(db.Text, nullable=False, default="")
+    band = db.Column(db.String(10), nullable=False)  # green|amber|red
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+    session = db.relationship("Session", back_populates="map_analyses")
+    agenda_item = db.relationship("AgendaItem")
+
+    def __repr__(self):
+        return f"<MapAnalysis {self.map_type} ({self.band})>"
+
+
 def owned(model, user):
     """Query helper: rows owned by `user`, or all rows if the user is an admin.
     Applies to any model with an `owner_user_id` column (Customer, Session)."""
@@ -205,6 +228,67 @@ def owned(model, user):
     if getattr(user, "is_admin", False):
         return q
     return q.filter(model.owner_user_id == user.id)
+
+
+# ---------------------------------------------------------------- Map mechanics (Phase 4)
+MAP_MECHANICS = {
+    "vision_keywords": {
+        "name": "Vision Keywords Map",
+        "purpose": "Capture the DNA of the customer's supply-chain vision as keywords and reach consensus on the few that matter.",
+        "mechanics": [
+            "Each participant writes 1–2-word keywords in silence (3–5 minutes)",
+            "Facilitator captures and clusters similar keywords on a shared map",
+            "Participants explain each cluster",
+            "Dot voting: 3 votes per participant (sponsor votes last to avoid anchoring bias)",
+            "Confirm consensus on 3–5 clusters"
+        ],
+        "expected_output": "A prioritised keyword map with 3–5 validated clusters the group agrees define the vision",
+        "evaluation_signals": [
+            "Keywords are concise (not sentences)",
+            "Clear clustering logic",
+            "Manageable 3–5 clusters (not sprawl)",
+            "Evidence of prioritisation/voting",
+            "Sponsor influence visible",
+            "Clusters genuinely express a shared vision"
+        ]
+    },
+    "problem_statements": {
+        "name": "Problem Statements Map",
+        "purpose": "Validate interview insights and reach consensus on the most important problems blocking the vision.",
+        "mechanics": [
+            "Present top ~20 problem statements (from interviews) on one view",
+            "Discuss: 'Are you missing any? Which top 3 hinder the vision? Are they connected?'",
+            "Optionally place statements against a Supply Chain map to locate where each problem hurts",
+            "Facilitator stickies key insights and connections"
+        ],
+        "expected_output": "A validated, prioritised set of problem statements with a clear top 3, ideally connected to each other and to the supply chain",
+        "evaluation_signals": [
+            "Statements are real problems (not solutions in disguise)",
+            "How-might-we framing present",
+            "Top 3 identified and prioritised",
+            "Connections/causality shown between problems",
+            "Tied to the vision and to points on the supply chain"
+        ]
+    },
+    "metrics_root_cause": {
+        "name": "Metrics & Root-Cause Map (Value Tree)",
+        "purpose": "Connect the vision to measurable business impact and expose the root causes behind the numbers.",
+        "mechanics": [
+            "Build a value tree: Key Metrics → Tier 2/3 metrics → root causes/problem statements",
+            "Identify metrics that drive business impact (P&L)",
+            "Map problem statements and root causes that affect each metric",
+            "Teams work in 2 groups (~30 min) then compare maps"
+        ],
+        "expected_output": "A single-pane view from KPIs down to root causes and consequences, linked to P&L impact",
+        "evaluation_signals": [
+            "Metrics tie to business/P&L impact (not vanity metrics)",
+            "Clear cause→effect chains",
+            "Root causes reach real drivers (5-why depth), not surface symptoms",
+            "Tier 2/3 metrics connect up to the key metric",
+            "Coverage across supply chain functions"
+        ]
+    }
+}
 
 
 # ---------------------------------------------------------------- Section library
