@@ -60,17 +60,18 @@
 
     <!-- Right: Analysis Results -->
     <div>
-      {% if eval_data and eval_data.get('error') %}
+      {% if map.status == 'error' and eval_data and eval_data.get('error') %}
       <!-- Error State -->
       <div class="card" style="background: #fef2f2; border: 1px solid #fecaca; margin-bottom: 16px">
         <h3 style="margin-top: 0; color: #dc2626">Analysis failed</h3>
         <p style="margin: 0; color: #991b1b; font-size: 14px">{{ eval_data.error }}</p>
       </div>
       <form method="post" action="{{ url_for('workspace.analyze_map_route', session_id=session.id, map_id=map.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <button type="submit" class="btn" style="width: 100%">Retry analysis</button>
       </form>
 
-      {% elif eval_data and eval_data.get('overall') is not none %}
+      {% elif map.status == 'done' and eval_data and eval_data.get('overall') is not none %}
       <!-- Results -->
       <div class="card" style="margin-bottom: 16px">
         <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 12px">

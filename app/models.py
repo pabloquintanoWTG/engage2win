@@ -213,7 +213,8 @@ class MapAnalysis(db.Model):
     role_context = db.Column(db.String(512), nullable=True)
     eval_json = db.Column(db.Text, nullable=False)  # Full evaluation JSON from Phase 0
     description_md = db.Column(db.Text, nullable=False, default="")
-    band = db.Column(db.String(10), nullable=False)  # green|amber|red
+    band = db.Column(db.String(10), nullable=True)  # green|amber|red (NULL = not evaluated)
+    status = db.Column(db.String(20), nullable=False, default="pending")  # pending|running|done|error
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     session = db.relationship("Session", back_populates="map_analyses")

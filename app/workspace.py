@@ -269,8 +269,9 @@ def upload_map(session_id):
         session_id=s.id,
         map_type=map_type,
         image_path=str(file_path),
-        eval_json="{}",  # pending
-        band="",
+        eval_json="{}",
+        band=None,  # Not evaluated yet
+        status="pending",
         participant_name=participant_name,
         role_context=role_context,
     )
@@ -323,6 +324,11 @@ def analyze_map_route(session_id, map_id):
 
     def run_analysis():
         with app_obj.app_context():
+            m_row = db.session.get(MapAnalysis, map_id_capture)
+            if m_row:
+                m_row.status = "running"
+                db.session.commit()
+
             try:
                 backend = resolve_backend(None)
                 eval_dict, desc_md = analyze_map_core(
@@ -340,12 +346,14 @@ def analyze_map_route(session_id, map_id):
                     m_row.description_md = desc_md or ""
                     overall_score = eval_dict.get("overall", 0)
                     m_row.band = "green" if overall_score >= 70 else ("amber" if overall_score >= 60 else "red")
+                    m_row.status = "done"
                     db.session.commit()
             except Exception as e:
                 m_row = db.session.get(MapAnalysis, map_id_capture)
                 if m_row:
                     m_row.eval_json = json.dumps({"error": str(e)})
-                    m_row.band = "error"
+                    m_row.status = "error"
+                    m_row.band = None  # Keep band clean on error
                     db.session.commit()
 
     thread = threading.Thread(target=run_analysis, daemon=True)
