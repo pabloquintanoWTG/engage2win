@@ -4,6 +4,7 @@ CRUD over the session-planning entities, all behind login and scoped by ownershi
 (facilitators see only their own; admins see all). Cross-user access returns 404 so
 we don't leak the existence of other users' data.
 """
+import json
 import os
 import sys
 import threading
@@ -18,6 +19,12 @@ from werkzeug.utils import secure_filename
 
 from models import (db, Customer, Session, Participant, MapAnalysis, owned,
                     LANGUAGES, SESSION_STATUSES, MAP_TYPES, MAP_MECHANICS)
+
+# --- Phase 4: set up validate/run.py import path
+ROOT = Path(__file__).resolve().parent.parent
+VALIDATE_DIR = ROOT / "validate"
+if str(VALIDATE_DIR) not in sys.path:
+    sys.path.insert(0, str(VALIDATE_DIR))
 
 workspace_bp = Blueprint("workspace", __name__)
 
@@ -277,13 +284,11 @@ def analyze_map_route(session_id, map_id):
     s = _get_session_or_404(session_id)
     m = _get_map_or_404(map_id, session_id)
 
-    import json
-
-    ROOT = Path(__file__).resolve().parent.parent
-    VALIDATE_DIR = ROOT / "validate"
-    sys.path.insert(0, str(VALIDATE_DIR))
-
-    from run import analyze_map as analyze_map_core, resolve_backend
+    try:
+        from run import analyze_map as analyze_map_core, resolve_backend
+    except ImportError:
+        flash("Analysis backend not available.", "error")
+        return redirect(url_for("workspace.map_detail", session_id=s.id, map_id=m.id))
 
     def run_analysis():
         try:
