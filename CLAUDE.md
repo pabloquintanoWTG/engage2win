@@ -56,3 +56,10 @@ the AI's output faster than redoing it from scratch? **Target: > 80%.**
 2. The schema is the contract. Always validate JSON against `/validate/schema.json`.
 3. Never commit secrets. API keys live in `.env.local` (gitignored).
 4. Never commit map photos. `/samples` is gitignored.
+5. When asking clarification questions during planning: Ask **one question at a time**, wait for answer, then ask the next. Do not batch clarification questions.
+
+## Working style
+
+- Ask clarification questions one-by-one (not batched)
+- Provide context for each question before asking
+- Wait for answer before proceeding to next question
