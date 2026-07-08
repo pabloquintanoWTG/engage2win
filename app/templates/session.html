@@ -36,7 +36,13 @@
         </div>
         <div class="field"><label>Date</label>
           <input type="date" name="scheduled_date" value="{{ session.scheduled_date.isoformat() if session.scheduled_date else '' }}"></div>
-        <button type="submit" class="btn">Save session</button>
+        <div style="display: flex; gap: 12px">
+          <button type="submit" class="btn">Save session</button>
+          <button type="button" class="btn danger delete-btn" onclick="toggleDeleteConfirm(this, 'session')">
+            <span class="btn-text">Delete session</span>
+            <span class="confirm-text">Confirm delete?</span>
+          </button>
+        </div>
       </form>
     </div>
 
@@ -69,4 +75,23 @@
     </div>
   </div>
 </div>
+
+<script>
+function toggleDeleteConfirm(btn, type) {
+  if (btn.classList.contains('confirming')) {
+    const action = type === 'session' ? '{{ url_for("workspace.delete_session", session_id=session.id) }}' : '{{ url_for("workspace.delete_customer", customer_id=customer.id) }}';
+    const delForm = document.createElement('form');
+    delForm.method = 'POST';
+    delForm.action = action;
+    document.body.appendChild(delForm);
+    delForm.submit();
+  } else {
+    btn.classList.add('confirming');
+    setTimeout(() => {
+      if (!btn.classList.contains('confirming')) return;
+      btn.classList.remove('confirming');
+    }, 3000);
+  }
+}
+</script>
 {% endblock %}

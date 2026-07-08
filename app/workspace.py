@@ -100,6 +100,16 @@ def edit_customer(customer_id):
     return redirect(url_for("workspace.customer_detail", customer_id=c.id))
 
 
+@workspace_bp.route("/customers/<int:customer_id>/delete", methods=["POST"])
+@login_required
+def delete_customer(customer_id):
+    c = _get_customer_or_404(customer_id)
+    db.session.delete(c)  # CASCADE deletes sessions, participants, maps, agenda items
+    db.session.commit()
+    flash("Customer deleted (including all sessions and maps).", "ok")
+    return redirect(url_for("customers"))
+
+
 # ---------------------------------------------------------------- sessions
 @workspace_bp.route("/customers/<int:customer_id>/sessions", methods=["POST"])
 @login_required
@@ -150,6 +160,17 @@ def edit_session(session_id):
     db.session.commit()
     flash("Session updated.", "ok")
     return redirect(url_for("workspace.session_workspace", session_id=s.id))
+
+
+@workspace_bp.route("/sessions/<int:session_id>/delete", methods=["POST"])
+@login_required
+def delete_session(session_id):
+    s = _get_session_or_404(session_id)
+    cid = s.customer_id
+    db.session.delete(s)  # CASCADE deletes participants, maps, agenda items
+    db.session.commit()
+    flash("Session deleted (including all participants, maps, and agenda items).", "ok")
+    return redirect(url_for("workspace.customer_detail", customer_id=cid))
 
 
 # ---------------------------------------------------------------- participants

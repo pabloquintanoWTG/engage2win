@@ -54,9 +54,35 @@
         <div class="field"><label>Name</label><input type="text" name="name" value="{{ customer.name }}" required></div>
         <div class="field"><label>Industry</label><input type="text" name="industry" value="{{ customer.industry }}"></div>
         <div class="field"><label>Notes</label><input type="text" name="notes" value="{{ customer.notes }}"></div>
-        <button type="submit" class="btn secondary">Save changes</button>
+        <div style="display: flex; gap: 12px">
+          <button type="submit" class="btn secondary">Save changes</button>
+          <button type="button" class="btn danger delete-btn" onclick="toggleDeleteConfirm(this, 'customer')">
+            <span class="btn-text">Delete customer</span>
+            <span class="confirm-text">Confirm delete?</span>
+          </button>
+        </div>
       </form>
     </div>
   </div>
 </div>
+
+<script>
+function toggleDeleteConfirm(btn, type) {
+  if (btn.classList.contains('confirming')) {
+    const form = btn.closest('form');
+    const action = type === 'customer' ? '{{ url_for("workspace.delete_customer", customer_id=customer.id) }}' : '{{ url_for("workspace.delete_session", session_id=session.id) }}';
+    const delForm = document.createElement('form');
+    delForm.method = 'POST';
+    delForm.action = action;
+    document.body.appendChild(delForm);
+    delForm.submit();
+  } else {
+    btn.classList.add('confirming');
+    setTimeout(() => {
+      if (!btn.classList.contains('confirming')) return;
+      btn.classList.remove('confirming');
+    }, 3000);
+  }
+}
+</script>
 {% endblock %}
