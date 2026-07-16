@@ -28,6 +28,7 @@
   <div class="card form-card" style="margin-bottom:24px">
     <div class="section-head"><h2>Add agenda item</h2></div>
     <form method="post" action="{{ url_for('agenda.agenda_list', session_id=session.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <div class="row">
         <div class="field">
           <label>Type</label>
@@ -150,6 +151,7 @@
         <div class="agenda-item-actions">
           <a href="{{ url_for('agenda.edit_agenda_item', session_id=session.id, item_id=item.id) }}" class="linkbtn">Edit</a>
           <form method="post" action="{{ url_for('agenda.delete_agenda_item', session_id=session.id, item_id=item.id) }}" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <button type="submit" class="linkbtn-danger" onclick="return confirm('Delete this agenda item?')">Delete</button>
           </form>
         </div>
@@ -206,9 +208,10 @@
           }));
 
           try {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
             const response = await fetch('{{ url_for("agenda.reorder_agenda_items", session_id=session.id) }}', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
               body: JSON.stringify({ items })
             });
             if (!response.ok) {

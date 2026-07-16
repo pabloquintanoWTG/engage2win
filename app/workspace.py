@@ -322,7 +322,7 @@ def analyze_map_route(session_id, map_id):
     m = _get_map_or_404(map_id, session_id)
 
     try:
-        from run import analyze_map as analyze_map_core, resolve_backend
+        from run import analyze_map as analyze_map_core, resolve_backend, rag
     except ImportError:
         flash("Analysis backend not available.", "error")
         return redirect(url_for("workspace.map_detail", session_id=s.id, map_id=m.id))
@@ -359,8 +359,7 @@ def analyze_map_route(session_id, map_id):
                 if m_row:
                     m_row.eval_json = json.dumps(eval_dict, ensure_ascii=False)
                     m_row.description_md = desc_md or ""
-                    overall_score = eval_dict.get("overall", 0)
-                    m_row.band = "green" if overall_score >= 70 else ("amber" if overall_score >= 60 else "red")
+                    m_row.band = rag(eval_dict.get("overall", 0))
                     m_row.status = "done"
                     db.session.commit()
             except Exception as e:

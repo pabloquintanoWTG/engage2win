@@ -318,6 +318,8 @@ def reorder_agenda_items(session_id):
                 AgendaItem.id == order["id"],
                 AgendaItem.session_id == s.id
             ).first()
+            if not item:
+                return jsonify(error="Item not found"), 404
             item.position = order["position"]
         db.session.commit()
         return jsonify(success=True), 200
