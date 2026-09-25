@@ -92,6 +92,27 @@ def test_create_agenda_item():
         assert item.get_tips() == ['Let sponsor vote last', 'Limit to 5 clusters']
 
 
+def test_create_second_agenda_item_gets_next_position():
+    """Adding an item when one already sits at position 0 must not collide."""
+    c = _admin_client()
+    cid = _create_customer(c)
+    sid = _create_session(c, cid)
+
+    for name in ('Welcome', 'Visioning'):
+        response = c.post(
+            f'/sessions/{sid}/agenda',
+            data={'type': 'section', 'name': name, 'category': 'Vision',
+                  'duration_min': 30, 'enabled': 'on'},
+            follow_redirects=True
+        )
+        assert response.status_code == 200
+
+    with server.app.app_context():
+        positions = [i.position for i in AgendaItem.query.filter_by(
+            session_id=sid).order_by(AgendaItem.position)]
+        assert positions == [0, 1]
+
+
 def test_list_agenda_items():
     """GET /sessions/<id>/agenda lists all items in order."""
     c = _admin_client()

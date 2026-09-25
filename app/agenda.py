@@ -142,11 +142,11 @@ def agenda_list(session_id):
                 default_sections=DEFAULT_SECTIONS
             ), 400
 
-        # Get next position
+        # Get next position (explicit None check: `or -1` would turn a max of 0 into -1)
         max_pos = db.session.query(
             db.func.max(AgendaItem.position)).filter(
-            AgendaItem.session_id == s.id).scalar() or -1
-        next_position = max_pos + 1
+            AgendaItem.session_id == s.id).scalar()
+        next_position = 0 if max_pos is None else max_pos + 1
 
         # Parse activities and tips as JSON
         activities = data.get("activities", "").strip().split("\n")
