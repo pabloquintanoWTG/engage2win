@@ -42,21 +42,19 @@
 <!-- live progress overlay -->
 <div class="overlay" id="overlay">
   <div class="progress-card">
-    <h3>Analyzing your map…</h3>
-    <ul class="steps" id="steps">
-      <li data-step="prepare"><span class="dot"></span> Preparing the map</li>
-      <li data-step="evaluate"><span class="dot"></span> Reading &amp; scoring the map</li>
-      <li data-step="describe"><span class="dot"></span> Writing the description</li>
-      <li data-step="done"><span class="dot"></span> Done</li>
-    </ul>
-    <div class="err-box" id="errBox" style="display:none"></div>
+    <h3 id="progressTitle">Analyzing your map…</h3>
+    <div id="progress"></div>
+    <div class="progress-actions" id="progressActions" style="display:none">
+      <button type="button" class="btn" id="retryBtn" style="flex:1">Try again</button>
+      <button type="button" class="btn secondary" id="closeBtn" style="flex:1">Close</button>
+    </div>
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='analysis_progress.js') }}"></script>
 <script>
-const STEP_ORDER = ["prepare", "evaluate", "describe", "done"];
 const fileInput = document.getElementById("image");
 const drop = document.getElementById("drop");
 const preview = document.getElementById("preview");
@@ -73,28 +71,32 @@ fileInput.addEventListener("change", () => showFile(fileInput.files[0]));
 ["dragleave","drop"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("dragover"); }));
 drop.addEventListener("drop", ev => { const f = ev.dataTransfer.files[0]; if (f) { fileInput.files = ev.dataTransfer.files; showFile(f); } });
 
-function markStep(step) {
-  const idx = STEP_ORDER.indexOf(step);
-  document.querySelectorAll("#steps li").forEach(li => {
-    const i = STEP_ORDER.indexOf(li.dataset.step);
-    li.classList.toggle("done", i < idx || step === "done");
-    li.classList.toggle("active", i === idx && step !== "done");
-  });
-}
-
 const overlay = document.getElementById("overlay");
-const errBox = document.getElementById("errBox");
+const progress = document.getElementById("progress");
+const progressTitle = document.getElementById("progressTitle");
+const progressActions = document.getElementById("progressActions");
 const submitBtn = document.getElementById("submitBtn");
+const form = document.getElementById("form");
 
-document.getElementById("form").addEventListener("submit", async (e) => {
+// Same step list the server reports, so the checklist shows before the first poll.
+const UPLOADING = {
+  state: "running", step: "prepare", elapsed_s: 0,
+  label: "Uploading the photo", next: "The AI reads and scores the map — usually 30–90 seconds.",
+  steps: [["prepare", "Preparing the map"], ["evaluate", "Reading & scoring the map"],
+          ["validate", "Checking the evaluation"], ["describe", "Writing the description"],
+          ["done", "Done"]].map(([key, label]) => ({ key, label })),
+};
+
+form.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!fileInput.files[0]) return;
   submitBtn.disabled = true;
-  errBox.style.display = "none";
+  progressTitle.textContent = "Analyzing your map…";
+  progressActions.style.display = "none";
   overlay.classList.add("show");
-  markStep("prepare");
+  AnalysisProgress.render(progress, UPLOADING);
 
-  const fd = new FormData(e.target);
+  const fd = new FormData(form);
   const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
   let res, data;
   try {
@@ -102,29 +104,32 @@ document.getElementById("form").addEventListener("submit", async (e) => {
     data = await res.json();
   } catch (err) {
     return fail(res && !res.ok
-      ? `Upload failed (${res.status}). The file may be too large.`
-      : "Network error: " + err.message);
+      ? { title: `Upload failed (${res.status})`, where: "Uploading the photo",
+          fix: "The file may be too large (limit 20 MB). Try a smaller photo." }
+      : { title: "Couldn't reach the app", where: "Uploading the photo",
+          fix: "Check the app is still running in its terminal, then try again.", detail: err.message });
   }
-  if (!res.ok) return fail(data.error || "Upload failed.");
+  if (!res.ok) return fail({ title: "Upload rejected", where: "Uploading the photo",
+                             message: data.error, fix: "Fix the issue above and try again." });
 
-  poll(data.job_id);
+  AnalysisProgress.poll("/status/" + data.job_id, progress, {
+    onDone: s => { window.location = s.result_url; },
+    onError: () => showActions(),
+  });
 });
 
-async function poll(jobId) {
-  try {
-    const r = await fetch("/status/" + jobId);
-    const s = await r.json();
-    if (s.state === "error") return fail(s.error);
-    markStep(s.step);
-    if (s.state === "done" && s.result_url) { window.location = s.result_url; return; }
-    setTimeout(() => poll(jobId), 1500);
-  } catch (err) { fail("Lost connection: " + err.message); }
+function fail(error) {
+  AnalysisProgress.render(progress, { ...UPLOADING, state: "error", error });
+  showActions();
 }
 
-function fail(msg) {
-  errBox.textContent = msg;
-  errBox.style.display = "block";
+function showActions() {
+  progressTitle.textContent = "Analysis failed";
+  progressActions.style.display = "flex";
   submitBtn.disabled = false;
 }
+
+document.getElementById("closeBtn").addEventListener("click", () => overlay.classList.remove("show"));
+document.getElementById("retryBtn").addEventListener("click", () => form.requestSubmit());
 </script>
 {% endblock %}

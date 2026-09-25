@@ -134,5 +134,8 @@ def test_schema_invalid_sets_error(client):
 
     s = client.get(f"/status/{job_id}").get_json()
     assert s["state"] == "error"
-    assert "schema" in s["error"].lower()
+    assert s["step"] == "validate"
+    assert s["error"]["title"] == "The evaluation was incomplete"
+    assert s["error"]["where"] == "Checking the evaluation"
+    assert s["error"]["fix"]
     assert client.get(f"/result/{job_id}").status_code == 404

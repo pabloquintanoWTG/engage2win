@@ -54,6 +54,8 @@ MEDIA_TYPES = {
     ".webp": "image/webp", ".gif": "image/gif",
 }
 DEFAULT_MODEL = os.environ.get("MTT_MODEL", "claude-sonnet-4-6")
+# Max seconds for one `claude` CLI pass; without it a hung CLI blocks forever.
+CLI_TIMEOUT_S = int(os.environ.get("E2W_CLI_TIMEOUT", "300"))
 LANGUAGES = {"1": "es", "2": "ca", "3": "en"}
 LANGUAGE_LABELS = {"es": "Spanish", "ca": "Catalan", "en": "English"}
 
@@ -222,6 +224,7 @@ def call_model_cli(model, prompt_text, image_path):
         text=True,
         encoding="utf-8",
         errors="replace",
+        timeout=CLI_TIMEOUT_S,
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -241,6 +244,7 @@ def describe_map_cli(model, describe_template, ctx, image_path):
         text=True,
         encoding="utf-8",
         errors="replace",
+        timeout=CLI_TIMEOUT_S,
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -461,7 +465,8 @@ Tally the ✅ to get your edit-not-redo rate (target &gt; 80%).</p></header>
 
 # ---------------------------------------------------------------- Phase 4: analyze_map() for app integration
 def analyze_map(image_path, map_type, participant_name=None, role_context=None,
-                session_topic=None, language="en", model=None, backend="claude_cli"):
+                session_topic=None, language="en", model=None, backend="claude_cli",
+                on_step=None):
     """
     Analyze a single map image (Phase 4 integration with Flask app).
 
@@ -474,6 +479,8 @@ def analyze_map(image_path, map_type, participant_name=None, role_context=None,
         language: Output language (en, es, ca)
         model: Model name (defaults to DEFAULT_MODEL)
         backend: "claude_cli", "live", or "dry_run"
+        on_step: optional callback(step) called as each stage starts:
+                 "evaluate", "validate", "describe"
 
     Returns:
         (eval_dict, description_md) — evaluation JSON and markdown description
@@ -503,6 +510,7 @@ def analyze_map(image_path, map_type, participant_name=None, role_context=None,
 
     eval_dict = None
     description_md = None
+    step = on_step or (lambda _s: None)
 
     try:
         if backend == "dry_run":
@@ -510,29 +518,36 @@ def analyze_map(image_path, map_type, participant_name=None, role_context=None,
             eval_dict = raw_eval
             description_md = stub_description(ctx) if describe_template else None
         elif backend == "claude_cli":
+            step("evaluate")
             raw_eval = call_model_cli(model, fill_prompt(prompt_template, ctx), image_path)
+            step("validate")
             eval_dict = extract_json(raw_eval)
             eval_dict = normalise(eval_dict)
             js_validate(instance=eval_dict, schema=schema)
 
             if describe_template:
+                step("describe")
                 raw_desc = describe_map_cli(model, describe_template, ctx, image_path)
                 description_md = raw_desc
         else:  # live (Anthropic SDK)
+            step("evaluate")
             b64 = base64.b64encode(image_path.read_bytes()).decode()
             raw_eval = call_model(model, fill_prompt(prompt_template, ctx),
                                   b64, MEDIA_TYPES[image_path.suffix.lower()])
+            step("validate")
             eval_dict = extract_json(raw_eval)
             eval_dict = normalise(eval_dict)
             js_validate(instance=eval_dict, schema=schema)
 
             if describe_template:
+                step("describe")
                 raw_desc = describe_map(model, describe_template, ctx,
                                        b64, MEDIA_TYPES[image_path.suffix.lower()])
                 description_md = raw_desc
 
     except (ValidationError, RuntimeError, ValueError) as e:
-        raise RuntimeError(f"Analysis failed: {e}")
+        # Keep the original exception as __cause__ so callers can explain it.
+        raise RuntimeError(f"Analysis failed: {e}") from e
 
     return eval_dict, description_md
 

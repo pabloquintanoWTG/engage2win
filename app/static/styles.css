@@ -113,8 +113,27 @@ h3 { font-size: 15px; margin: 16px 0 12px; font-weight: 700; }
 .steps li.done { color: var(--text-2); }
 .steps li.done .dot { background: var(--green); border-color: var(--green); color: #fff; }
 .steps li.done .dot::after { content: "\2713"; }
+.steps li.failed { color: var(--red); font-weight: 600; }
+.steps li.failed .dot { background: var(--red); border-color: var(--red); color: #fff; }
+.steps li.failed .dot::after { content: "\2715"; }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
 .err-box { color: var(--red); font-size: 13px; margin-top: 14px; }
+
+/* live progress text + error panel (static/analysis_progress.js) */
+.prog-now, .prog-next { font-size: 13px; color: var(--text-2); margin-top: 12px; line-height: 1.5; }
+.prog-next { margin-top: 4px; }
+.prog-clock { color: #9a9aa6; }
+.prog-slow { font-size: 12px; color: var(--amber); margin-top: 8px; line-height: 1.5; }
+.err-panel { margin-top: 16px; padding: 14px 16px; border-radius: 10px; text-align: left;
+  background: #fef2f2; border: 1px solid #fecaca; color: #7f1d1d; font-size: 13px; line-height: 1.5; }
+.err-panel .err-title { font-weight: 700; font-size: 15px; color: var(--red); margin-bottom: 6px; }
+.err-panel .err-msg { margin: 6px 0; }
+.err-panel .err-fix { margin-top: 8px; padding: 8px 10px; background: #fff; border-radius: 6px; color: var(--text); }
+.err-panel .err-detail { margin-top: 8px; }
+.err-panel .err-detail summary { cursor: pointer; color: #991b1b; font-size: 12px; }
+.err-panel .err-detail pre { white-space: pre-wrap; word-break: break-word; font-size: 11px;
+  max-height: 160px; overflow: auto; margin: 6px 0 0; }
+.progress-actions { display: flex; gap: 8px; margin-top: 16px; }
 
 /* ---------------------------------------------------------------- result layout */
 .result-grid { display: grid; grid-template-columns: minmax(280px, 40%) 1fr; gap: 20px; align-items: start; }

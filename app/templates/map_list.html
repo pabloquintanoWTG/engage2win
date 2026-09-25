@@ -69,7 +69,7 @@
       </div>
       <div style="display: flex; gap: 8px; margin-left: auto">
         <a href="{{ url_for('workspace.map_detail', session_id=session.id, map_id=m.id) }}" class="linkbtn">View</a>
-        {% if m.status != 'done' %}
+        {% if m.status not in ('done', 'running') %}
         <form method="post" action="{{ url_for('workspace.analyze_map_route', session_id=session.id, map_id=m.id) }}" style="display: inline">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <button type="submit" class="linkbtn">{% if m.status == 'error' %}Retry{% else %}Analyze{% endif %}</button>

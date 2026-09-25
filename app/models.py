@@ -215,13 +215,51 @@ class MapAnalysis(db.Model):
     description_md = db.Column(db.Text, nullable=False, default="")
     band = db.Column(db.String(10), nullable=True)  # green|amber|red (NULL = not evaluated)
     status = db.Column(db.String(20), nullable=False, default="pending")  # pending|running|done|error
+    # Live progress while running (see analysis_status.STEPS) and a structured
+    # error ({title, where, message, fix, detail}) when status == "error".
+    step = db.Column(db.String(20), nullable=True)
+    error_json = db.Column(db.Text, nullable=True)
+    started_at = db.Column(db.DateTime, nullable=True)
+    finished_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
 
     session = db.relationship("Session", back_populates="map_analyses")
     agenda_item = db.relationship("AgendaItem")
 
+    def get_error(self):
+        try:
+            return json.loads(self.error_json) if self.error_json else None
+        except (json.JSONDecodeError, TypeError):
+            return None
+
     def __repr__(self):
         return f"<MapAnalysis {self.map_type} ({self.band})>"
+
+
+# Columns added after a table first shipped. db.create_all() never alters existing
+# tables, so add them in place on startup (SQLite ADD COLUMN; nullable only).
+_ADDED_COLUMNS = {
+    "map_analyses": {
+        "step": "VARCHAR(20)",
+        "error_json": "TEXT",
+        "started_at": "DATETIME",
+        "finished_at": "DATETIME",
+    },
+}
+
+
+def ensure_columns():
+    """Add any missing columns from _ADDED_COLUMNS to an existing database."""
+    inspector = db.inspect(db.engine)
+    existing_tables = set(inspector.get_table_names())
+    with db.engine.begin() as conn:
+        for table, cols in _ADDED_COLUMNS.items():
+            if table not in existing_tables:
+                continue
+            present = {c["name"] for c in inspector.get_columns(table)}
+            for name, ddl in cols.items():
+                if name not in present:
+                    conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
 
 
 def owned(model, user):

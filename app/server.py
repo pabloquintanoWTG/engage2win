@@ -34,9 +34,10 @@ sys.path.insert(0, str(VALIDATE_DIR))
 sys.path.insert(0, str(APP_DIR))
 import run  # noqa: E402  (validate/run.py — analysis core, reused as-is)
 
-from jsonschema import validate as js_validate, ValidationError  # noqa: E402
+from jsonschema import validate as js_validate  # noqa: E402
 from flask_login import LoginManager, login_required, current_user  # noqa: E402
-from models import db, User, Customer, Session, owned  # noqa: E402
+from models import db, User, Customer, Session, owned, ensure_columns, utcnow  # noqa: E402
+from analysis_status import status_payload, explain_error  # noqa: E402
 from auth import auth_bp  # noqa: E402
 from workspace import workspace_bp  # noqa: E402
 from agenda import agenda_bp  # noqa: E402
@@ -100,6 +101,7 @@ limiter.limit("5 per minute; 20 per hour")(app.view_functions["auth.register"])
 
 with app.app_context():
     db.create_all()
+    ensure_columns()
 _SCHEMA = None
 _PROMPT = None
 _DESCRIBE = None
@@ -120,14 +122,6 @@ def _resources():
 _JOBS = {}
 _LOCK = threading.Lock()
 
-STEPS = ["prepare", "evaluate", "describe", "done"]
-STEP_LABELS = {
-    "prepare":  "Preparing the map",
-    "evaluate": "Reading & scoring the map",
-    "describe": "Writing the description",
-    "done":     "Done",
-}
-
 
 def _set(job_id, **kw):
     with _LOCK:
@@ -140,23 +134,28 @@ def run_job(job_id, image_path, ctx, model):
     Kept as a plain callable (not a closure) so tests can invoke it directly
     with the claude CLI mocked.
     """
-    schema, prompt_tpl, describe_tpl = _resources()
+    step = "prepare"
     try:
-        _set(job_id, step="evaluate")
+        schema, prompt_tpl, describe_tpl = _resources()
+        step = "evaluate"
+        _set(job_id, step=step)
         raw = run.call_model_cli(model, run.fill_prompt(prompt_tpl, ctx), image_path)
+        step = "validate"
+        _set(job_id, step=step)
         data = run.normalise(run.extract_json(raw))
         js_validate(instance=data, schema=schema)
 
         description = None
         if describe_tpl:
-            _set(job_id, step="describe")
+            step = "describe"
+            _set(job_id, step=step)
             description = run.describe_map_cli(model, describe_tpl, ctx, image_path)
 
-        _set(job_id, step="done", state="done", result={"eval": data, "description": description})
-    except ValidationError as e:
-        _set(job_id, state="error", error=f"The evaluation didn't match the schema: {e.message}")
-    except Exception as e:  # CLI missing, non-JSON output, etc.
-        _set(job_id, state="error", error=str(e))
+        _set(job_id, step="done", state="done", finished_at=utcnow(),
+             result={"eval": data, "description": description})
+    except Exception as e:  # CLI missing/unsigned/timeout, non-JSON output, schema mismatch…
+        app.logger.exception("Quick analysis %s failed during '%s'", job_id, step)
+        _set(job_id, state="error", finished_at=utcnow(), error=explain_error(e, step))
 
 
 # --- routes ----------------------------------------------------------------
@@ -212,7 +211,8 @@ def analyze():
 
     with _LOCK:
         _JOBS[job_id] = {"state": "running", "step": "prepare", "owner_id": current_user.id,
-                         "image": image_path.name, "ctx": ctx, "result": None, "error": None}
+                         "image": image_path.name, "ctx": ctx, "result": None, "error": None,
+                         "started_at": utcnow(), "finished_at": None}
 
     threading.Thread(target=run_job, args=(job_id, image_path, ctx, model), daemon=True).start()
     return jsonify(job_id=job_id), 202
@@ -233,8 +233,8 @@ def status(job_id):
     job = _owned_job(job_id)
     if job is None:
         return jsonify(error="Unknown job."), 404
-    payload = {"state": job["state"], "step": job["step"],
-               "label": STEP_LABELS.get(job["step"], ""), "error": job["error"]}
+    payload = status_payload(job["state"], job["step"], job.get("started_at"),
+                             job.get("finished_at"), job["error"], timeout_s=run.CLI_TIMEOUT_S)
     if payload["state"] == "done":
         payload["result_url"] = url_for("result", job_id=job_id)
     return jsonify(payload)

@@ -60,16 +60,24 @@
 
     <!-- Right: Analysis Results -->
     <div>
-      {% if map.status == 'error' and eval_data and eval_data.get('error') %}
-      <!-- Error State -->
-      <div class="card" style="background: #fef2f2; border: 1px solid #fecaca; margin-bottom: 16px">
-        <h3 style="margin-top: 0; color: #dc2626">Analysis failed</h3>
-        <p style="margin: 0; color: #991b1b; font-size: 14px">{{ eval_data.error }}</p>
+      {% if map.status in ('running', 'error') %}
+      <!-- Live progress / error (static/analysis_progress.js) -->
+      <div class="card" style="margin-bottom: 16px">
+        <h3 style="margin-top: 0" id="progressTitle">
+          {% if map.status == 'error' %}Analysis failed{% else %}Analyzing your map…{% endif %}
+        </h3>
+        <div id="progress"></div>
+        <div class="progress-actions" id="progressActions" {% if map.status != 'error' %}style="display:none"{% endif %}>
+          <form method="post" action="{{ url_for('workspace.analyze_map_route', session_id=session.id, map_id=map.id) }}" style="flex: 1">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="btn" style="width: 100%">Retry analysis</button>
+          </form>
+          <form method="post" action="{{ url_for('workspace.delete_map', session_id=session.id, map_id=map.id) }}" style="flex: 1" onsubmit="return confirm('Delete this map?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="btn secondary" style="width: 100%">Delete map</button>
+          </form>
+        </div>
       </div>
-      <form method="post" action="{{ url_for('workspace.analyze_map_route', session_id=session.id, map_id=map.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-        <button type="submit" class="btn" style="width: 100%">Retry analysis</button>
-      </form>
 
       {% elif map.status == 'done' and eval_data and eval_data.get('overall') is not none %}
       <!-- Results -->
@@ -164,13 +172,42 @@
       </div>
 
       {% else %}
-      <!-- Pending State -->
+      <!-- Not analysed yet -->
       <div class="card" style="text-align: center; padding: 40px 20px">
-        <p style="margin: 0 0 16px; color: #666">Analysis in progress...</p>
-        <button onclick="location.reload()" class="btn secondary">Refresh</button>
+        <h3 style="margin-top: 0">Not analysed yet</h3>
+        <p style="margin: 0 0 16px; color: #666">
+          {% if map.status == 'done' %}The last analysis didn't produce a readable result.{% else %}This map hasn't been analysed.{% endif %}
+          Next: start the analysis — it usually takes 1–3 minutes.
+        </p>
+        <form method="post" action="{{ url_for('workspace.analyze_map_route', session_id=session.id, map_id=map.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+          <button type="submit" class="btn">Analyze map</button>
+        </form>
       </div>
       {% endif %}
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if map.status in ('running', 'error') %}
+<script src="{{ url_for('static', filename='analysis_progress.js') }}"></script>
+<script>
+(function () {
+  const root = document.getElementById("progress");
+  const initial = {{ status | tojson }};
+  AnalysisProgress.render(root, initial);
+  if (initial.state !== "running") return;
+  AnalysisProgress.poll(
+    "{{ url_for('workspace.map_status', session_id=session.id, map_id=map.id) }}", root, {
+      onDone: () => location.reload(),
+      onError: () => {
+        document.getElementById("progressTitle").textContent = "Analysis failed";
+        document.getElementById("progressActions").style.display = "flex";
+      },
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

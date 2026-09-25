@@ -13,12 +13,14 @@ from datetime import date
 from pathlib import Path
 
 from flask import (Blueprint, render_template, request, redirect, url_for,
-                   flash, abort, current_app, send_from_directory)
+                   flash, abort, current_app, send_from_directory, jsonify)
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 
-from models import (db, Customer, Session, Participant, MapAnalysis, owned,
+from models import (db, Customer, Session, Participant, MapAnalysis, owned, utcnow,
                     LANGUAGES, SESSION_STATUSES, MAP_TYPES, MAP_MECHANICS)
+from analysis_status import (status_payload, explain_error, interrupted_error,
+                             NoBackendError)
 
 # --- Phase 4: set up validate/run.py import path
 ROOT = Path(__file__).resolve().parent.parent
@@ -293,7 +295,9 @@ def upload_map(session_id):
     db.session.add(m)
     db.session.commit()
 
-    flash("Map uploaded. Click 'Analyze' to start analysis.", "ok")
+    # The form says "Upload and analyze" — start straight away.
+    _start_analysis(s, m)
+    flash("Map uploaded — analysis started. Progress is shown below.", "ok")
     return redirect(url_for("workspace.map_detail", session_id=s.id, map_id=m.id))
 
 
@@ -302,6 +306,7 @@ def upload_map(session_id):
 def map_detail(session_id, map_id):
     s = _get_session_or_404(session_id)
     m = _get_map_or_404(map_id, session_id)
+    _reconcile_orphan(m)
 
     mechanics = MAP_MECHANICS.get(m.map_type, {})
     eval_data = {}
@@ -312,7 +317,101 @@ def map_detail(session_id, map_id):
             eval_data = {}  # Invalid JSON stored, show empty results
 
     return render_template("map_detail.html", session=s, map=m,
-                          mechanics=mechanics, eval_data=eval_data)
+                          mechanics=mechanics, eval_data=eval_data,
+                          status=_map_status_payload(m))
+
+
+# Map ids with a live worker thread in this process. A row that says "running"
+# but isn't here was orphaned by an app restart and is reported as interrupted.
+_ACTIVE_ANALYSES = set()
+_ACTIVE_LOCK = threading.Lock()
+
+
+def run_map_analysis(app_obj, map_id, params):
+    """Worker: run the Phase 0 core for one map, recording each step on the row.
+
+    A plain function (not a closure) so tests can call it synchronously with the
+    analysis core mocked. `params` holds plain values captured from the request
+    (ORM instances are not thread-safe).
+    """
+    import run  # validate/run.py (path set up at import time above)
+
+    step = "prepare"
+
+    def set_step(new_step):
+        nonlocal step
+        step = new_step
+        row = db.session.get(MapAnalysis, map_id)
+        if row:
+            row.step = new_step
+            db.session.commit()
+
+    with app_obj.app_context():
+        try:
+            backend = run.resolve_backend(None)
+            if backend == "dry_run":
+                raise NoBackendError("resolve_backend() found no claude CLI and no ANTHROPIC_API_KEY")
+            eval_dict, desc_md = run.analyze_map(backend=backend, on_step=set_step, **params)
+            row = db.session.get(MapAnalysis, map_id)
+            if row:
+                row.eval_json = json.dumps(eval_dict, ensure_ascii=False)
+                row.description_md = desc_md or ""
+                row.band = run.rag(eval_dict.get("overall", 0))
+                row.status = "done"
+                row.step = "done"
+                row.error_json = None
+                row.finished_at = utcnow()
+                db.session.commit()
+        except Exception as e:
+            app_obj.logger.exception("Map analysis %s failed during '%s'", map_id, step)
+            db.session.rollback()
+            row = db.session.get(MapAnalysis, map_id)
+            if row:
+                row.status = "error"
+                row.band = None  # Keep band clean on error
+                row.error_json = json.dumps(explain_error(e, step), ensure_ascii=False)
+                row.finished_at = utcnow()
+                db.session.commit()
+        finally:
+            with _ACTIVE_LOCK:
+                _ACTIVE_ANALYSES.discard(map_id)
+            db.session.remove()
+
+
+def _start_analysis(s, m):
+    """Mark the map running and start the worker. Returns False if already running."""
+    with _ACTIVE_LOCK:
+        if m.id in _ACTIVE_ANALYSES:
+            return False
+        _ACTIVE_ANALYSES.add(m.id)
+
+    m.status = "running"
+    m.step = "prepare"
+    m.error_json = None
+    m.started_at = utcnow()
+    m.finished_at = None
+    db.session.commit()
+
+    params = dict(image_path=m.image_path, map_type=m.map_type,
+                  participant_name=m.participant_name, role_context=m.role_context,
+                  session_topic=s.title, language=s.language)
+    threading.Thread(target=run_map_analysis,
+                     args=(current_app._get_current_object(), m.id, params),
+                     daemon=True).start()
+    return True
+
+
+def _reconcile_orphan(m):
+    """A row stuck at "running" with no live worker (app restarted) → error."""
+    if m.status != "running":
+        return
+    with _ACTIVE_LOCK:
+        alive = m.id in _ACTIVE_ANALYSES
+    if not alive:
+        m.status = "error"
+        m.error_json = json.dumps(interrupted_error(m.step))
+        m.finished_at = utcnow()
+        db.session.commit()
 
 
 @workspace_bp.route("/sessions/<int:session_id>/maps/<int:map_id>/analyze", methods=["POST"])
@@ -320,61 +419,36 @@ def map_detail(session_id, map_id):
 def analyze_map_route(session_id, map_id):
     s = _get_session_or_404(session_id)
     m = _get_map_or_404(map_id, session_id)
-
-    try:
-        from run import analyze_map as analyze_map_core, resolve_backend, rag
-    except ImportError:
-        flash("Analysis backend not available.", "error")
-        return redirect(url_for("workspace.map_detail", session_id=s.id, map_id=m.id))
-
-    # Capture plain values before thread spawn (ORM instances are thread-unsafe)
-    app_obj = current_app._get_current_object()
-    map_id_capture = m.id
-    image_path = m.image_path
-    map_type = m.map_type
-    participant_name = m.participant_name
-    role_context = m.role_context
-    session_title = s.title
-    session_language = s.language
-
-    def run_analysis():
-        with app_obj.app_context():
-            m_row = db.session.get(MapAnalysis, map_id_capture)
-            if m_row:
-                m_row.status = "running"
-                db.session.commit()
-
-            try:
-                backend = resolve_backend(None)
-                eval_dict, desc_md = analyze_map_core(
-                    image_path=image_path,
-                    map_type=map_type,
-                    participant_name=participant_name,
-                    role_context=role_context,
-                    session_topic=session_title,
-                    language=session_language,
-                    backend=backend
-                )
-                m_row = db.session.get(MapAnalysis, map_id_capture)
-                if m_row:
-                    m_row.eval_json = json.dumps(eval_dict, ensure_ascii=False)
-                    m_row.description_md = desc_md or ""
-                    m_row.band = rag(eval_dict.get("overall", 0))
-                    m_row.status = "done"
-                    db.session.commit()
-            except Exception as e:
-                m_row = db.session.get(MapAnalysis, map_id_capture)
-                if m_row:
-                    m_row.eval_json = json.dumps({"error": str(e)})
-                    m_row.status = "error"
-                    m_row.band = None  # Keep band clean on error
-                    db.session.commit()
-
-    thread = threading.Thread(target=run_analysis, daemon=True)
-    thread.start()
-
-    flash("Analysis started.", "ok")
+    if _start_analysis(s, m):
+        flash("Analysis started — progress is shown below.", "ok")
+    else:
+        flash("This map is already being analysed.", "error")
     return redirect(url_for("workspace.map_detail", session_id=s.id, map_id=m.id))
+
+
+@workspace_bp.route("/api/sessions/<int:session_id>/maps/<int:map_id>/status")
+@login_required
+def map_status(session_id, map_id):
+    _get_session_or_404(session_id)
+    m = _get_map_or_404(map_id, session_id)
+    _reconcile_orphan(m)
+    return jsonify(_map_status_payload(m))
+
+
+def _map_status_payload(m):
+    import run
+    error = m.get_error()
+    if m.status == "error" and error is None:
+        # Rows analysed before error_json existed kept a bare {"error": "..."} in eval_json.
+        try:
+            legacy = json.loads(m.eval_json or "{}").get("error")
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            legacy = None
+        error = {"title": "Analysis failed", "where": "Analysis",
+                 "message": legacy or "The previous analysis failed.",
+                 "fix": "Click Retry analysis."}
+    return status_payload(m.status, m.step, m.started_at, m.finished_at,
+                          error, timeout_s=run.CLI_TIMEOUT_S)
 
 
 @workspace_bp.route("/sessions/<int:session_id>/maps/<int:map_id>/image")
