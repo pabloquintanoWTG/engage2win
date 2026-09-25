@@ -199,11 +199,25 @@ def _resolve_claude_executable():
     return candidates[0] if candidates else "claude"
 
 
+def _cli_prompt_with_image(prompt_text, image_path):
+    """Prepend an instruction so the CLI reads the image via its Read tool.
+
+    The `claude` CLI has no --image flag; in headless mode it loads local
+    images by reading the absolute path referenced in the prompt.
+    """
+    abs_path = str(Path(image_path).resolve())
+    return (f"First, use the Read tool to open and view the image at this path:\n"
+            f"{abs_path}\n\n"
+            f"Then complete the following task based on what you see in that image:\n\n"
+            f"{prompt_text}")
+
+
 def call_model_cli(model, prompt_text, image_path):
     """Call the local `claude` CLI with the image file (no dangerous permissions needed)."""
     cli_executable = _resolve_claude_executable()
+    full_prompt = _cli_prompt_with_image(prompt_text, image_path)
     result = subprocess.run(
-        [cli_executable, "--model", model, "--image", str(image_path), "-p", prompt_text],
+        [cli_executable, "--model", model, "-p", full_prompt, "--allowedTools", "Read"],
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -220,8 +234,9 @@ def describe_map_cli(model, describe_template, ctx, image_path):
     """Call the local `claude` CLI for the description pass (no dangerous permissions needed)."""
     prompt_text = fill_prompt(describe_template, ctx)
     cli_executable = _resolve_claude_executable()
+    full_prompt = _cli_prompt_with_image(prompt_text, image_path)
     result = subprocess.run(
-        [cli_executable, "--model", model, "--image", str(image_path), "-p", prompt_text],
+        [cli_executable, "--model", model, "-p", full_prompt, "--allowedTools", "Read"],
         capture_output=True,
         text=True,
         encoding="utf-8",

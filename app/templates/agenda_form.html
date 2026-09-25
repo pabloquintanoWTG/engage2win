@@ -10,6 +10,7 @@
 
   <div class="card form-card" style="max-width: 600px">
     <form method="post" class="form-card">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
       <!-- Section Library Picker -->
       <div class="field">
         <label>Start from a section template (optional)</label>

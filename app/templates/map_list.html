@@ -76,6 +76,7 @@
         </form>
         {% endif %}
         <form method="post" action="{{ url_for('workspace.delete_map', session_id=session.id, map_id=m.id) }}" style="display: inline" onsubmit="return confirm('Delete this map?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
           <button type="submit" class="linkbtn-danger">Delete</button>
         </form>
       </div>

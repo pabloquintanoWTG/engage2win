@@ -10,6 +10,7 @@
     <div>
       <div class="section-head"><h2>Sessions</h2></div>
       <form method="post" action="{{ url_for('workspace.create_session', customer_id=customer.id) }}" class="card form-card" style="margin-bottom:18px">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="field">
           <label>New session title</label>
           <input type="text" name="title" placeholder="e.g. SC Visioning Workshop" required>

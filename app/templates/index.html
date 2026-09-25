@@ -7,6 +7,7 @@
     Red/Amber/Green methodology evaluation and a structured description in about a minute.</p>
 
   <form id="form" class="card form-card" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     <div class="field">
       <label>Map photo</label>
       <label class="drop" id="drop" for="image">
@@ -94,9 +95,10 @@ document.getElementById("form").addEventListener("submit", async (e) => {
   markStep("prepare");
 
   const fd = new FormData(e.target);
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
   let res, data;
   try {
-    res = await fetch("/analyze", { method: "POST", body: fd });
+    res = await fetch("/analyze", { method: "POST", body: fd, headers: { "X-CSRFToken": csrfToken } });
     data = await res.json();
   } catch (err) {
     return fail(res && !res.ok

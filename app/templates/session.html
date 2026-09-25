@@ -66,6 +66,7 @@
           <span class="list-title">{{ p.name }}</span>
           <span class="list-meta">{{ p.role_dept or '—' }}{% if p.email %} · {{ p.email }}{% endif %}</span>
           <form method="post" action="{{ url_for('workspace.remove_participant', session_id=session.id, pid=p.id) }}" style="margin-left:auto">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <button type="submit" class="linkbtn-danger" title="Remove">✕</button>
           </form>
         </div>
